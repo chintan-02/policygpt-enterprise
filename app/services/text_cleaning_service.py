@@ -7,9 +7,6 @@ class TextCleaningService:
 
     PDF extraction often creates broken lines, repeated spaces,
     odd unicode characters, and page-level formatting noise.
-
-    Keep this service focused only on cleaning.
-    Do not put chunking, embeddings, or retrieval logic here.
     """
 
     def clean_page_text(self, text: str) -> str:
@@ -23,12 +20,18 @@ class TextCleaningService:
 
         return text.strip()
 
-    def infer_section_title(self, original_text: str, fallback: str | None = None) -> str | None:
+    def infer_section_title(
+        self,
+        original_text: str,
+        fallback: str | None = None,
+    ) -> str | None:
         """
         Basic section-title heuristic.
 
-        Later we can improve this using PDF font sizes or layout metadata.
-        For now, we use the first meaningful short line.
+        Priority:
+        1. Numbered policy section, for example: 5. Confidentiality...
+        2. First meaningful non-header line
+        3. Fallback
         """
 
         if not original_text:
@@ -36,20 +39,43 @@ class TextCleaningService:
 
         lines = [line.strip() for line in original_text.splitlines() if line.strip()]
 
+        # Prefer numbered section titles.
         for line in lines:
             normalized_line = self._collapse_whitespace(line)
 
-            if 3 <= len(normalized_line) <= 80:
+            if re.match(r"^\d+\.\s+.+", normalized_line):
+                return normalized_line[:120]
+
+        ignored_patterns = [
+            r"^fictional demo hr policy",
+            r"^public sample",
+            r"^page\s+\d+$",
+            r"^field\s+value$",
+            r"^table of contents$",
+        ]
+
+        for line in lines:
+            normalized_line = self._collapse_whitespace(line)
+            lowered = normalized_line.lower()
+
+            should_ignore = any(
+                re.match(pattern, lowered) for pattern in ignored_patterns
+            )
+
+            if should_ignore:
+                continue
+
+            if 3 <= len(normalized_line) <= 100:
                 return normalized_line
 
         return fallback
 
     def _normalize_unicode_spacing(self, text: str) -> str:
         replacements = {
-            "\u00a0": " ",  # non-breaking space
-            "\u200b": "",   # zero-width space
-            "\u2013": "-",  # en dash
-            "\u2014": "-",  # em dash
+            "\u00a0": " ",
+            "\u200b": "",
+            "\u2013": "-",
+            "\u2014": "-",
             "\u2018": "'",
             "\u2019": "'",
             "\u201c": '"',
@@ -62,19 +88,6 @@ class TextCleaningService:
         return text
 
     def _join_broken_lines(self, text: str) -> str:
-        """
-        Convert PDF line breaks into readable text.
-
-        Example:
-        ChemiCutes
-        turns
-        real
-        science
-
-        becomes:
-        ChemiCutes turns real science
-        """
-
         lines = [line.strip() for line in text.splitlines() if line.strip()]
 
         if not lines:

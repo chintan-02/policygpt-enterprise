@@ -6,36 +6,24 @@ from fastapi import UploadFile
 from app.core.config import get_settings
 from app.core.exceptions import BadRequestException
 from app.schemas.document import (
-    DocumentChunk,
     DocumentIngestionResponse,
     DocumentSearchRequest,
     DocumentSearchResponse,
+    DocumentEvidenceRequest,
+    DocumentEvidenceResponse,
     ExtractedPageText,
 )
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
 from app.services.pdf_extraction_service import PDFExtractionService
+from app.services.retrieval_service import RetrievalService
 from app.services.text_cleaning_service import TextCleaningService
 from app.services.vector_store_service import VectorStoreService
 
 
 class DocumentService:
     """
-    Service layer for document ingestion and semantic search.
-
-    Phase 1 Step 5 scope:
-    - validate PDF upload
-    - extract page-level text
-    - clean extracted text
-    - create citation-ready chunks
-    - create embeddings
-    - store chunks in ChromaDB
-    - search stored chunks by semantic similarity
-
-    Not included yet:
-    - LLM answer generation
-    - final citation answer formatting
-    - database metadata storage
+    Service layer for document ingestion, semantic search, and evidence retrieval.
     """
 
     allowed_extensions = {".pdf"}
@@ -50,6 +38,7 @@ class DocumentService:
         self.chunking_service = ChunkingService()
         self.embedding_service = EmbeddingService()
         self.vector_store_service = VectorStoreService()
+        self.retrieval_service = RetrievalService()
 
     async def process_pdf_upload(self, file: UploadFile) -> DocumentIngestionResponse:
         settings = get_settings()
@@ -164,6 +153,12 @@ class DocumentService:
             result_count=len(results),
             results=results,
         )
+
+    def retrieve_evidence(
+        self,
+        evidence_request: DocumentEvidenceRequest,
+    ) -> DocumentEvidenceResponse:
+        return self.retrieval_service.retrieve_evidence(evidence_request)
 
     def _clean_extracted_pages(
         self,

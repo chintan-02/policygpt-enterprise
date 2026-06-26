@@ -1,3 +1,5 @@
+import re
+
 from app.core.exceptions import ConfigurationException
 from app.schemas.document import DocumentChunk, ExtractedPageText
 
@@ -6,9 +8,8 @@ class ChunkingService:
     """
     Create page-aware text chunks.
 
-    Important:
-    Chunks should not blindly lose page metadata.
     Citation-based RAG depends on knowing where each chunk came from.
+    This version avoids splitting in the middle of words when possible.
     """
 
     def create_chunks(
@@ -63,13 +64,86 @@ class ChunkingService:
         chunk_size_chars: int,
         chunk_overlap_chars: int,
     ) -> list[str]:
-        """
-        Split text using character windows with overlap.
+        text = text.strip()
 
-        This is simple and reliable for Phase 1.
-        Later, we can upgrade to token-aware or sentence-aware chunking.
-        """
+        if not text:
+            return []
 
+        if len(text) <= chunk_size_chars:
+            return [text]
+
+        sentences = self._split_into_sentences(text)
+
+        chunks: list[str] = []
+        current_chunk = ""
+
+        for sentence in sentences:
+            sentence = sentence.strip()
+
+            if not sentence:
+                continue
+
+            if not current_chunk:
+                current_chunk = sentence
+                continue
+
+            candidate = f"{current_chunk} {sentence}".strip()
+
+            if len(candidate) <= chunk_size_chars:
+                current_chunk = candidate
+                continue
+
+            chunks.extend(
+                self._finalize_chunk(
+                    text=current_chunk,
+                    chunk_size_chars=chunk_size_chars,
+                    chunk_overlap_chars=chunk_overlap_chars,
+                )
+            )
+
+            overlap_text = self._get_overlap_text(
+                text=chunks[-1],
+                chunk_overlap_chars=chunk_overlap_chars,
+            )
+
+            current_chunk = f"{overlap_text} {sentence}".strip()
+
+            while len(current_chunk) > chunk_size_chars:
+                split_at = self._find_split_position(
+                    text=current_chunk,
+                    max_chars=chunk_size_chars,
+                )
+
+                chunk = current_chunk[:split_at].strip()
+
+                if chunk:
+                    chunks.append(chunk)
+
+                remaining_text = current_chunk[split_at:].strip()
+                overlap_text = self._get_overlap_text(
+                    text=chunk,
+                    chunk_overlap_chars=chunk_overlap_chars,
+                )
+
+                current_chunk = f"{overlap_text} {remaining_text}".strip()
+
+        if current_chunk:
+            chunks.extend(
+                self._finalize_chunk(
+                    text=current_chunk,
+                    chunk_size_chars=chunk_size_chars,
+                    chunk_overlap_chars=chunk_overlap_chars,
+                )
+            )
+
+        return [chunk for chunk in chunks if chunk.strip()]
+
+    def _finalize_chunk(
+        self,
+        text: str,
+        chunk_size_chars: int,
+        chunk_overlap_chars: int,
+    ) -> list[str]:
         text = text.strip()
 
         if not text:
@@ -79,21 +153,81 @@ class ChunkingService:
             return [text]
 
         chunks: list[str] = []
-        start = 0
+        current_text = text
 
-        while start < len(text):
-            end = start + chunk_size_chars
-            chunk = text[start:end].strip()
+        while len(current_text) > chunk_size_chars:
+            split_at = self._find_split_position(
+                text=current_text,
+                max_chars=chunk_size_chars,
+            )
+
+            chunk = current_text[:split_at].strip()
 
             if chunk:
                 chunks.append(chunk)
 
-            if end >= len(text):
-                break
+            remaining_text = current_text[split_at:].strip()
+            overlap_text = self._get_overlap_text(
+                text=chunk,
+                chunk_overlap_chars=chunk_overlap_chars,
+            )
 
-            start = end - chunk_overlap_chars
+            current_text = f"{overlap_text} {remaining_text}".strip()
+
+        if current_text:
+            chunks.append(current_text)
 
         return chunks
+
+    def _split_into_sentences(self, text: str) -> list[str]:
+        """
+        Split on sentence boundaries when possible.
+
+        This is not perfect NLP sentence segmentation, but it is clean,
+        dependency-free, and good enough for Phase 1.
+        """
+
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        return [sentence.strip() for sentence in sentences if sentence.strip()]
+
+    def _find_split_position(self, text: str, max_chars: int) -> int:
+        """
+        Find a safe split point near max_chars.
+
+        Prefer splitting on whitespace instead of cutting through words.
+        """
+
+        if len(text) <= max_chars:
+            return len(text)
+
+        split_at = text.rfind(" ", 0, max_chars)
+
+        if split_at == -1 or split_at < max_chars // 2:
+            return max_chars
+
+        return split_at
+
+    def _get_overlap_text(
+        self,
+        text: str,
+        chunk_overlap_chars: int,
+    ) -> str:
+        if chunk_overlap_chars <= 0:
+            return ""
+
+        text = text.strip()
+
+        if len(text) <= chunk_overlap_chars:
+            return text
+
+        overlap = text[-chunk_overlap_chars:].strip()
+
+        first_space_index = overlap.find(" ")
+
+        if first_space_index != -1:
+            overlap = overlap[first_space_index + 1 :].strip()
+
+        return overlap
 
     def _validate_chunk_settings(
         self,

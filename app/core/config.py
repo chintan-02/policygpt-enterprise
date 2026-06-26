@@ -51,6 +51,13 @@ class Settings(BaseSettings):
 
     search_top_k_default: int = Field(default=5, alias="SEARCH_TOP_K_DEFAULT")
 
+    min_retrieval_score: float = Field(default=0.35, alias="MIN_RETRIEVAL_SCORE")
+    citation_excerpt_max_chars: int = Field(
+        default=600,
+        alias="CITATION_EXCERPT_MAX_CHARS",
+    )
+    max_citation_cards: int = Field(default=5, alias="MAX_CITATION_CARDS")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

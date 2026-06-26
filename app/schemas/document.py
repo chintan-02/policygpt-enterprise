@@ -66,3 +66,34 @@ class DocumentSearchResponse(BaseModel):
     top_k: int
     result_count: int
     results: list[DocumentSearchResult]
+
+
+class CitationCard(BaseModel):
+    document_id: str
+    filename: str
+    page_number: int = Field(..., ge=1)
+    section_title: str | None = None
+    chunk_index: int = Field(..., ge=0)
+    excerpt: str
+    retrieval_score: float
+
+
+class DocumentEvidenceRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class DocumentEvidenceResponse(BaseModel):
+    success: bool = Field(default=True)
+    query: str
+    top_k: int
+
+    answer_ready: bool
+    evidence_status: str
+    confidence_score: float
+    min_retrieval_score: float
+
+    citation_count: int
+    citations: list[CitationCard]
+
+    fallback_message: str | None = None

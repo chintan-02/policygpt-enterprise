@@ -1,8 +1,9 @@
 from fastapi import APIRouter, File, UploadFile
 import structlog
 
-from app.core.config import get_settings
 from app.schemas.document import (
+    DocumentEvidenceRequest,
+    DocumentEvidenceResponse,
     DocumentIngestionResponse,
     DocumentSearchRequest,
     DocumentSearchResponse,
@@ -42,21 +43,15 @@ async def upload_document(
     return result
 
 
-@router.post("/search", response_model=DocumentSearchResponse)
-async def search_documents(
-    search_request: DocumentSearchRequest,
-) -> DocumentSearchResponse:
+@router.post("/upload", response_model=DocumentIngestionResponse)
+async def upload_document(
+    file: UploadFile = File(...),
+) -> DocumentIngestionResponse:
     """
-    Search stored document chunks using semantic similarity.
+    Raw semantic search endpoint.
 
-    This is retrieval only.
-    It does not generate an LLM answer yet.
+    Useful for debugging retrieval quality.
     """
-
-    settings = get_settings()
-
-    if search_request.top_k is None:
-        search_request.top_k = settings.search_top_k_default
 
     result = document_service.search_documents(search_request)
 
@@ -65,6 +60,32 @@ async def search_documents(
         query=search_request.query,
         top_k=search_request.top_k,
         result_count=result.result_count,
+    )
+
+    return result
+
+
+@router.post("/evidence", response_model=DocumentEvidenceResponse)
+async def retrieve_document_evidence(
+    evidence_request: DocumentEvidenceRequest,
+) -> DocumentEvidenceResponse:
+    """
+    Retrieve citation-ready evidence cards.
+
+    This endpoint prepares evidence for future LLM answer generation.
+    It does not generate the final answer yet.
+    """
+
+    result = document_service.retrieve_evidence(evidence_request)
+
+    logger.info(
+        "document_evidence_retrieved",
+        query=evidence_request.query,
+        top_k=evidence_request.top_k,
+        citation_count=result.citation_count,
+        evidence_status=result.evidence_status,
+        confidence_score=result.confidence_score,
+        answer_ready=result.answer_ready,
     )
 
     return result
