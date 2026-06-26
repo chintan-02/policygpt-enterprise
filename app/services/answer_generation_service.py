@@ -1,9 +1,12 @@
+import structlog
 from openai import OpenAI
 
 from app.core.config import get_settings
-from app.core.exceptions import ConfigurationException, ServiceException
+from app.core.exceptions import ServiceException
 from app.rag.prompts import RAG_SYSTEM_PROMPT, build_rag_user_prompt
 from app.schemas.document import CitationCard
+
+logger = structlog.get_logger(__name__)
 
 
 class AnswerGenerationService:
@@ -14,6 +17,11 @@ class AnswerGenerationService:
     - groq: OpenAI-compatible API base URL
     - openai: OpenAI API
     - none: citation-only fallback mode
+
+    Production behavior:
+    - Never generate an answer without evidence
+    - Never expose raw provider errors to the API response
+    - Fall back safely when provider auth/rate-limit/network errors happen
     """
 
     def __init__(self) -> None:
@@ -38,11 +46,7 @@ class AnswerGenerationService:
             return fallback_answer, None, self.settings.llm_provider, True
 
         if not self.settings.enable_llm_answer or self.settings.llm_provider == "none":
-            citation_only_answer = (
-                "LLM answer generation is disabled. Review the citation evidence "
-                "below for the most relevant policy information."
-            )
-            return citation_only_answer, None, "none", True
+            return self._citation_only_fallback(provider_name="none", model_name=None)
 
         evidence_context = self._build_evidence_context(citations)
 
@@ -57,19 +61,22 @@ class AnswerGenerationService:
         if self.settings.llm_provider == "openai":
             return self._generate_with_openai(user_prompt)
 
-        citation_only_answer = (
-            "No supported LLM provider is configured. Review the citation evidence "
-            "below for the most relevant policy information."
-        )
-        return citation_only_answer, None, "none", True
+        return self._citation_only_fallback(provider_name="none", model_name=None)
 
-    def _generate_with_groq(self, user_prompt: str) -> tuple[str, str, str, bool]:
+    def _generate_with_groq(self, user_prompt: str) -> tuple[str, str | None, str, bool]:
+        provider_name = "groq"
+        model_name = self.settings.groq_model_name
+
         if not self.settings.groq_api_key:
-            citation_only_answer = (
-                "Groq is selected, but GROQ_API_KEY is missing. Review the citation "
-                "evidence below for the most relevant policy information."
+            logger.warning(
+                "llm_provider_missing_api_key",
+                provider=provider_name,
+                model_name=model_name,
             )
-            return citation_only_answer, self.settings.groq_model_name, "groq", True
+            return self._citation_only_fallback(
+                provider_name=provider_name,
+                model_name=model_name,
+            )
 
         client = OpenAI(
             api_key=self.settings.groq_api_key,
@@ -78,25 +85,35 @@ class AnswerGenerationService:
 
         return self._call_chat_completion(
             client=client,
-            model_name=self.settings.groq_model_name,
-            provider_name="groq",
+            model_name=model_name,
+            provider_name=provider_name,
             user_prompt=user_prompt,
         )
 
-    def _generate_with_openai(self, user_prompt: str) -> tuple[str, str, str, bool]:
+    def _generate_with_openai(
+        self,
+        user_prompt: str,
+    ) -> tuple[str, str | None, str, bool]:
+        provider_name = "openai"
+        model_name = self.settings.openai_model_name
+
         if not self.settings.openai_api_key:
-            citation_only_answer = (
-                "OpenAI is selected, but OPENAI_API_KEY is missing. Review the citation "
-                "evidence below for the most relevant policy information."
+            logger.warning(
+                "llm_provider_missing_api_key",
+                provider=provider_name,
+                model_name=model_name,
             )
-            return citation_only_answer, self.settings.openai_model_name, "openai", True
+            return self._citation_only_fallback(
+                provider_name=provider_name,
+                model_name=model_name,
+            )
 
         client = OpenAI(api_key=self.settings.openai_api_key)
 
         return self._call_chat_completion(
             client=client,
-            model_name=self.settings.openai_model_name,
-            provider_name="openai",
+            model_name=model_name,
+            provider_name=provider_name,
             user_prompt=user_prompt,
         )
 
@@ -106,7 +123,7 @@ class AnswerGenerationService:
         model_name: str,
         provider_name: str,
         user_prompt: str,
-    ) -> tuple[str, str, str, bool]:
+    ) -> tuple[str, str | None, str, bool]:
         try:
             completion = client.chat.completions.create(
                 model=model_name,
@@ -131,12 +148,31 @@ class AnswerGenerationService:
 
             return answer.strip(), model_name, provider_name, False
 
-        except ConfigurationException:
-            raise
         except Exception as exc:
-            raise ServiceException(
-                f"Failed to generate answer with {provider_name}: {exc}"
-            ) from exc
+            logger.warning(
+                "llm_generation_failed",
+                provider=provider_name,
+                model_name=model_name,
+                error_type=type(exc).__name__,
+            )
+
+            return self._citation_only_fallback(
+                provider_name=provider_name,
+                model_name=model_name,
+            )
+
+    def _citation_only_fallback(
+        self,
+        provider_name: str,
+        model_name: str | None,
+    ) -> tuple[str, str | None, str, bool]:
+        answer = (
+            "I found supporting citation evidence, but LLM answer generation is "
+            "not available right now. Review the citation evidence below for the "
+            "most relevant policy information."
+        )
+
+        return answer, model_name, provider_name, True
 
     def _build_evidence_context(self, citations: list[CitationCard]) -> str:
         evidence_blocks: list[str] = []

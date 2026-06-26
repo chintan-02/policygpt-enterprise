@@ -13,12 +13,10 @@ class RetrievalService:
     """
     Convert raw semantic search results into citation-ready evidence.
 
-    This service does not generate final answers.
-    It prepares trusted evidence for the future LLM generation step.
-
     Design:
     - excerpt: short UI/API citation preview
     - evidence_text: longer internal evidence for LLM grounding
+    - duplicate citations are skipped for cleaner answers
     """
 
     def __init__(self) -> None:
@@ -68,10 +66,18 @@ class RetrievalService:
         raw_results: list[DocumentSearchResult],
     ) -> list[CitationCard]:
         citation_cards: list[CitationCard] = []
+        seen_citation_keys: set[str] = set()
 
         for result in raw_results:
             if result.score < self.settings.min_retrieval_score:
                 continue
+
+            dedupe_key = self._build_dedupe_key(result)
+
+            if dedupe_key in seen_citation_keys:
+                continue
+
+            seen_citation_keys.add(dedupe_key)
 
             excerpt = self._build_text_preview(
                 text=result.text,
@@ -101,6 +107,26 @@ class RetrievalService:
 
         return citation_cards
 
+    def _build_dedupe_key(self, result: DocumentSearchResult) -> str:
+        """
+        Prevent duplicate citation cards when the same PDF is uploaded multiple times.
+
+        We intentionally do not use document_id here because duplicate uploads
+        create different document IDs for the same content.
+        """
+
+        normalized_text = " ".join(result.text.lower().split())
+        text_fingerprint = normalized_text[:300]
+
+        return "|".join(
+            [
+                result.filename.lower(),
+                str(result.page_number),
+                str(result.chunk_index),
+                text_fingerprint,
+            ]
+        )
+
     def _build_text_preview(self, text: str, max_chars: int) -> str:
         text = " ".join(text.split()).strip()
 
@@ -120,7 +146,7 @@ class RetrievalService:
 
         top_score = citation_cards[0].retrieval_score
 
-        if top_score >= 0.65 and len(citation_cards) >= 1:
+        if top_score >= 0.65:
             return "strong"
 
         if top_score >= 0.45:

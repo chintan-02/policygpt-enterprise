@@ -3,20 +3,50 @@ import re
 
 class TextCleaningService:
     """
-    Clean extracted PDF text before chunking.
+    Clean PDF-extracted text before chunking.
 
-    PDF extraction often creates broken lines, repeated spaces,
-    odd unicode characters, and page-level formatting noise.
+    Keep this simple for Phase 1:
+    - remove noisy whitespace
+    - repair common PDF spacing issues
+    - infer simple section titles
     """
+
+    ignored_title_prefixes = (
+        "fictional demo hr policy",
+        "public sample",
+        "not legal advice",
+        "page ",
+        "field value",
+        "table of contents",
+        "suggested test questions",
+    )
+
+    common_spacing_repairs = {
+        "fromanother": "from another",
+        "inadvance": "in advance",
+        "areemployees": "are employees",
+        "effectivedate": "effective date",
+        "localtime": "local time",
+        "approvedfocused": "approved focused",
+        "contractorsare": "contractors are",
+        "employeesare": "employees are",
+        "employeesmay": "employees may",
+        "peopleoperations": "People Operations",
+    }
 
     def clean_page_text(self, text: str) -> str:
         if not text:
             return ""
 
-        text = self._normalize_unicode_spacing(text)
-        text = self._join_broken_lines(text)
-        text = self._normalize_punctuation_spacing(text)
-        text = self._collapse_whitespace(text)
+        text = text.replace("\x00", " ")
+        text = text.replace("\u00a0", " ")
+
+        text = self._repair_common_spacing_issues(text)
+
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = re.sub(r" +\n", "\n", text)
+        text = re.sub(r"\n +", "\n", text)
 
         return text.strip()
 
@@ -25,81 +55,88 @@ class TextCleaningService:
         original_text: str,
         fallback: str | None = None,
     ) -> str | None:
-        """
-        Basic section-title heuristic.
-
-        Priority:
-        1. Numbered policy section, for example: 5. Confidentiality...
-        2. First meaningful non-header line
-        3. Fallback
-        """
-
         if not original_text:
             return fallback
 
         lines = [line.strip() for line in original_text.splitlines() if line.strip()]
 
-        # Prefer numbered section titles.
-        for line in lines:
-            normalized_line = self._collapse_whitespace(line)
+        for line in lines[:12]:
+            cleaned_line = self.clean_page_text(line)
 
-            if re.match(r"^\d+\.\s+.+", normalized_line):
-                return normalized_line[:120]
-
-        ignored_patterns = [
-            r"^fictional demo hr policy",
-            r"^public sample",
-            r"^page\s+\d+$",
-            r"^field\s+value$",
-            r"^table of contents$",
-        ]
-
-        for line in lines:
-            normalized_line = self._collapse_whitespace(line)
-            lowered = normalized_line.lower()
-
-            should_ignore = any(
-                re.match(pattern, lowered) for pattern in ignored_patterns
-            )
-
-            if should_ignore:
+            if not cleaned_line:
                 continue
 
-            if 3 <= len(normalized_line) <= 100:
-                return normalized_line
+            if self._is_ignored_title(cleaned_line):
+                continue
+
+            if self._looks_like_numbered_section_title(cleaned_line):
+                return cleaned_line
+
+        for line in lines[:12]:
+            cleaned_line = self.clean_page_text(line)
+
+            if not cleaned_line:
+                continue
+
+            if self._is_ignored_title(cleaned_line):
+                continue
+
+            if self._looks_like_title(cleaned_line):
+                return cleaned_line
 
         return fallback
 
-    def _normalize_unicode_spacing(self, text: str) -> str:
-        replacements = {
-            "\u00a0": " ",
-            "\u200b": "",
-            "\u2013": "-",
-            "\u2014": "-",
-            "\u2018": "'",
-            "\u2019": "'",
-            "\u201c": '"',
-            "\u201d": '"',
-        }
+    def _repair_common_spacing_issues(self, text: str) -> str:
+        text = re.sub(r"(?<=[.!?])(?=[A-Z])", " ", text)
+        text = re.sub(r"\bto(?=\d)", "to ", text, flags=re.IGNORECASE)
 
-        for old, new in replacements.items():
-            text = text.replace(old, new)
+        for bad_text, fixed_text in self.common_spacing_repairs.items():
+            text = re.sub(
+                re.escape(bad_text),
+                fixed_text,
+                text,
+                flags=re.IGNORECASE,
+            )
 
         return text
 
-    def _join_broken_lines(self, text: str) -> str:
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
+    def _is_ignored_title(self, text: str) -> bool:
+        normalized = text.lower().strip()
 
-        if not lines:
-            return ""
+        return any(
+            normalized.startswith(prefix)
+            for prefix in self.ignored_title_prefixes
+        )
 
-        return " ".join(lines)
+    def _looks_like_numbered_section_title(self, text: str) -> bool:
+        return bool(re.match(r"^\d+[\.\)]\s+[A-Z][A-Za-z0-9,/\- &]+", text))
 
-    def _normalize_punctuation_spacing(self, text: str) -> str:
-        text = re.sub(r"\s+([,.!?;:])", r"\1", text)
-        text = re.sub(r"([({\[])\s+", r"\1", text)
-        text = re.sub(r"\s+([)}\]])", r"\1", text)
-        return text
+    def _looks_like_title(self, text: str) -> bool:
+        if len(text) > 90:
+            return False
 
-    def _collapse_whitespace(self, text: str) -> str:
-        return re.sub(r"\s+", " ", text).strip()
+        if text.endswith("."):
+            return False
+
+        words = text.split()
+
+        if len(words) > 12:
+            return False
+
+        alpha_chars = [char for char in text if char.isalpha()]
+
+        if not alpha_chars:
+            return False
+
+        uppercase_or_title_words = 0
+
+        for word in words:
+            stripped = word.strip(":-–—,()[]{}")
+
+            if not stripped:
+                continue
+
+            if stripped.isupper() or stripped[:1].isupper():
+                uppercase_or_title_words += 1
+
+        return uppercase_or_title_words >= max(1, len(words) // 2)
