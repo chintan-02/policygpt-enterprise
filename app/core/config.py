@@ -31,6 +31,9 @@ class Settings(BaseSettings):
 
     max_pdf_upload_size_mb: int = Field(default=10, alias="MAX_PDF_UPLOAD_SIZE_MB")
 
+    text_chunk_size_chars: int = Field(default=1200, alias="TEXT_CHUNK_SIZE_CHARS")
+    text_chunk_overlap_chars: int = Field(default=200, alias="TEXT_CHUNK_OVERLAP_CHARS")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -70,16 +73,6 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        """
-        Convert CORS origins from env string to list.
-
-        Supports:
-        CORS_ALLOWED_ORIGINS=http://localhost:8501,http://localhost:3000
-
-        Also supports JSON style:
-        CORS_ALLOWED_ORIGINS=["http://localhost:8501","http://localhost:3000"]
-        """
-
         value = self.cors_allowed_origins.strip()
 
         if not value:
