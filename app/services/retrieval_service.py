@@ -15,6 +15,10 @@ class RetrievalService:
 
     This service does not generate final answers.
     It prepares trusted evidence for the future LLM generation step.
+
+    Design:
+    - excerpt: short UI/API citation preview
+    - evidence_text: longer internal evidence for LLM grounding
     """
 
     def __init__(self) -> None:
@@ -69,9 +73,14 @@ class RetrievalService:
             if result.score < self.settings.min_retrieval_score:
                 continue
 
-            excerpt = self._build_excerpt(
+            excerpt = self._build_text_preview(
                 text=result.text,
                 max_chars=self.settings.citation_excerpt_max_chars,
+            )
+
+            evidence_text = self._build_text_preview(
+                text=result.text,
+                max_chars=self.settings.llm_evidence_max_chars,
             )
 
             citation_cards.append(
@@ -82,6 +91,7 @@ class RetrievalService:
                     section_title=result.section_title,
                     chunk_index=result.chunk_index,
                     excerpt=excerpt,
+                    evidence_text=evidence_text,
                     retrieval_score=result.score,
                 )
             )
@@ -91,7 +101,7 @@ class RetrievalService:
 
         return citation_cards
 
-    def _build_excerpt(self, text: str, max_chars: int) -> str:
+    def _build_text_preview(self, text: str, max_chars: int) -> str:
         text = " ".join(text.split()).strip()
 
         if len(text) <= max_chars:

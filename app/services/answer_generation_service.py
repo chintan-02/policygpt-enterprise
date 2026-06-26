@@ -18,7 +18,6 @@ class AnswerGenerationService:
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self._client: OpenAI | None = None
 
     def generate_answer(
         self,
@@ -153,7 +152,7 @@ class AnswerGenerationService:
                         f"Page: {citation.page_number}",
                         f"Section: {section}",
                         f"Retrieval score: {citation.retrieval_score}",
-                        f"Excerpt: {citation.excerpt}",
+                        f"Evidence text: {citation.evidence_text}",
                     ]
                 )
             )

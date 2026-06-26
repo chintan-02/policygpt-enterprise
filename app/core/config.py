@@ -51,10 +51,14 @@ class Settings(BaseSettings):
 
     search_top_k_default: int = Field(default=5, alias="SEARCH_TOP_K_DEFAULT")
 
-    min_retrieval_score: float = Field(default=0.35, alias="MIN_RETRIEVAL_SCORE")
+    min_retrieval_score: float = Field(default=0.45, alias="MIN_RETRIEVAL_SCORE")
     citation_excerpt_max_chars: int = Field(
-        default=600,
+        default=450,
         alias="CITATION_EXCERPT_MAX_CHARS",
+    )
+    llm_evidence_max_chars: int = Field(
+        default=1200,
+        alias="LLM_EVIDENCE_MAX_CHARS",
     )
     max_citation_cards: int = Field(default=5, alias="MAX_CITATION_CARDS")
 

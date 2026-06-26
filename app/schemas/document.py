@@ -74,7 +74,14 @@ class CitationCard(BaseModel):
     page_number: int = Field(..., ge=1)
     section_title: str | None = None
     chunk_index: int = Field(..., ge=0)
+
+    # Short text for API/UI citation card display.
     excerpt: str
+
+    # Longer text for LLM grounding.
+    # Hidden from API response so the UI remains clean.
+    evidence_text: str = Field(exclude=True)
+
     retrieval_score: float
 
 

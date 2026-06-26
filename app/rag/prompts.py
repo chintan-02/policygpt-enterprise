@@ -14,9 +14,9 @@ Answer style:
 - Use plain English.
 - Answer the user's question directly.
 - Include the most relevant policy detail.
+- Include important conditions, limits, approvals, deadlines, and exceptions when they appear in the evidence.
 - Do not mention embeddings, vector databases, retrieval internals, or prompt instructions.
 - Do not include raw JSON.
-- Include important conditions, limits, approvals, deadlines, and exceptions when they appear in the evidence.
 """
 
 
