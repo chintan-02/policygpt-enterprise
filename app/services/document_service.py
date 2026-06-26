@@ -5,15 +5,26 @@ from fastapi import UploadFile
 
 from app.core.config import get_settings
 from app.core.exceptions import BadRequestException
-from app.schemas.document import DocumentUploadResponse
+from app.schemas.document import DocumentExtractionResponse
+from app.services.pdf_extraction_service import PDFExtractionService
 
 
 class DocumentService:
     """
-    Service layer for document upload validation.
+    Service layer for document upload validation and text extraction.
 
-    This step only validates uploaded PDF files.
-    It does not extract text, store files, create chunks, or call embeddings yet.
+    Phase 1 Step 3 scope:
+    - validate PDF upload
+    - read PDF bytes
+    - extract page-level text
+    - return extraction metadata
+
+    Not included yet:
+    - file storage
+    - chunking
+    - embeddings
+    - vector search
+    - LLM answering
     """
 
     allowed_extensions = {".pdf"}
@@ -22,7 +33,10 @@ class DocumentService:
         "application/octet-stream",
     }
 
-    async def validate_pdf_upload(self, file: UploadFile) -> DocumentUploadResponse:
+    def __init__(self) -> None:
+        self.pdf_extraction_service = PDFExtractionService()
+
+    async def process_pdf_upload(self, file: UploadFile) -> DocumentExtractionResponse:
         settings = get_settings()
 
         filename = file.filename or ""
@@ -42,7 +56,10 @@ class DocumentService:
                 f"Invalid file content type: {content_type}. Only PDF files are supported."
             )
 
-        size_bytes = await self._calculate_file_size(file)
+        pdf_bytes = await file.read()
+        await file.seek(0)
+
+        size_bytes = len(pdf_bytes)
 
         if size_bytes == 0:
             raise BadRequestException("Uploaded PDF file is empty.")
@@ -53,31 +70,46 @@ class DocumentService:
                 f"{settings.max_pdf_upload_size_mb} MB."
             )
 
-        await file.seek(0)
+        document_id = str(uuid4())
 
-        return DocumentUploadResponse(
-            document_id=str(uuid4()),
+        extraction_result = self.pdf_extraction_service.extract_text_from_pdf(pdf_bytes)
+
+        preview_text = self._build_preview_text(
+            pages_text=[page.text for page in extraction_result.pages],
+            max_characters=1000,
+        )
+
+        is_text_extractable = extraction_result.total_characters > 0
+
+        if is_text_extractable:
+            message = "PDF uploaded and text extracted successfully."
+        else:
+            message = (
+                "PDF uploaded successfully, but no selectable text was found. "
+                "This may be a scanned or image-only PDF."
+            )
+
+        return DocumentExtractionResponse(
+            document_id=document_id,
             filename=filename,
             content_type=content_type,
             size_bytes=size_bytes,
-            message="PDF uploaded and validated successfully.",
+            page_count=extraction_result.page_count,
+            total_characters=extraction_result.total_characters,
+            is_text_extractable=is_text_extractable,
+            preview_text=preview_text,
+            pages=extraction_result.pages,
+            message=message,
         )
 
-    async def _calculate_file_size(self, file: UploadFile) -> int:
-        """
-        Calculate uploaded file size safely in chunks.
+    def _build_preview_text(
+        self,
+        pages_text: list[str],
+        max_characters: int = 1000,
+    ) -> str:
+        combined_text = "\n".join(text for text in pages_text if text).strip()
 
-        This avoids loading very large files into memory at once.
-        """
+        if len(combined_text) <= max_characters:
+            return combined_text
 
-        await file.seek(0)
-
-        size = 0
-        chunk_size = 1024 * 1024
-
-        while chunk := await file.read(chunk_size):
-            size += len(chunk)
-
-        await file.seek(0)
-
-        return size
+        return combined_text[:max_characters].strip() + "..."

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, File, UploadFile
 import structlog
 
-from app.schemas.document import DocumentUploadResponse
+from app.schemas.document import DocumentExtractionResponse
 from app.services.document_service import DocumentService
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -10,38 +10,26 @@ logger = structlog.get_logger(__name__)
 document_service = DocumentService()
 
 
-@router.post("/upload", response_model=DocumentUploadResponse)
+@router.post("/upload", response_model=DocumentExtractionResponse)
 async def upload_document(
     file: UploadFile = File(...),
-) -> DocumentUploadResponse:
+) -> DocumentExtractionResponse:
     """
-    Upload and validate a policy PDF.
+    Upload a policy PDF, validate it, and extract page-level text.
 
-    Phase 1 Step 2 scope:
-    - Accept PDF upload
-    - Validate filename
-    - Validate extension
-    - Validate content type
-    - Validate file size
-    - Return upload metadata
-
-    Not included yet:
-    - File storage
-    - PDF text extraction
-    - Chunking
-    - Embeddings
-    - Vector search
-    - LLM answering
+    This endpoint prepares the foundation for citation-based RAG.
     """
 
-    result = await document_service.validate_pdf_upload(file)
+    result = await document_service.process_pdf_upload(file)
 
     logger.info(
-        "document_upload_validated",
+        "document_text_extracted",
         document_id=result.document_id,
         filename=result.filename,
         size_bytes=result.size_bytes,
-        content_type=result.content_type,
+        page_count=result.page_count,
+        total_characters=result.total_characters,
+        is_text_extractable=result.is_text_extractable,
     )
 
     return result
