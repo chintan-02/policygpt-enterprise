@@ -2,6 +2,8 @@ from fastapi import APIRouter, File, UploadFile
 import structlog
 
 from app.schemas.document import (
+    DocumentAnswerRequest,
+    DocumentAnswerResponse,
     DocumentEvidenceRequest,
     DocumentEvidenceResponse,
     DocumentIngestionResponse,
@@ -20,11 +22,6 @@ document_service = DocumentService()
 async def upload_document(
     file: UploadFile = File(...),
 ) -> DocumentIngestionResponse:
-    """
-    Upload a policy PDF, validate it, extract text, clean text,
-    create chunks, generate embeddings, and store chunks in ChromaDB.
-    """
-
     result = await document_service.process_pdf_upload(file)
 
     logger.info(
@@ -43,16 +40,10 @@ async def upload_document(
     return result
 
 
-@router.post("/upload", response_model=DocumentIngestionResponse)
-async def upload_document(
-    file: UploadFile = File(...),
-) -> DocumentIngestionResponse:
-    """
-    Raw semantic search endpoint.
-
-    Useful for debugging retrieval quality.
-    """
-
+@router.post("/search", response_model=DocumentSearchResponse)
+async def search_documents(
+    search_request: DocumentSearchRequest,
+) -> DocumentSearchResponse:
     result = document_service.search_documents(search_request)
 
     logger.info(
@@ -69,13 +60,6 @@ async def upload_document(
 async def retrieve_document_evidence(
     evidence_request: DocumentEvidenceRequest,
 ) -> DocumentEvidenceResponse:
-    """
-    Retrieve citation-ready evidence cards.
-
-    This endpoint prepares evidence for future LLM answer generation.
-    It does not generate the final answer yet.
-    """
-
     result = document_service.retrieve_evidence(evidence_request)
 
     logger.info(
@@ -86,6 +70,28 @@ async def retrieve_document_evidence(
         evidence_status=result.evidence_status,
         confidence_score=result.confidence_score,
         answer_ready=result.answer_ready,
+    )
+
+    return result
+
+
+@router.post("/ask", response_model=DocumentAnswerResponse)
+async def ask_document_question(
+    answer_request: DocumentAnswerRequest,
+) -> DocumentAnswerResponse:
+    result = document_service.answer_question(answer_request)
+
+    logger.info(
+        "document_answer_generated",
+        question=answer_request.question,
+        top_k=answer_request.top_k,
+        answer_ready=result.answer_ready,
+        evidence_status=result.evidence_status,
+        confidence_score=result.confidence_score,
+        citation_count=result.citation_count,
+        fallback_used=result.fallback_used,
+        llm_provider=result.llm_provider,
+        model_name=result.model_name,
     )
 
     return result

@@ -58,6 +58,27 @@ class Settings(BaseSettings):
     )
     max_citation_cards: int = Field(default=5, alias="MAX_CITATION_CARDS")
 
+    enable_llm_answer: bool = Field(default=True, alias="ENABLE_LLM_ANSWER")
+    llm_provider: Literal["groq", "openai", "none"] = Field(
+        default="groq",
+        alias="LLM_PROVIDER",
+    )
+    llm_max_output_tokens: int = Field(default=700, alias="LLM_MAX_OUTPUT_TOKENS")
+    llm_temperature: float = Field(default=0.1, alias="LLM_TEMPERATURE")
+
+    groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
+    groq_base_url: str = Field(
+        default="https://api.groq.com/openai/v1",
+        alias="GROQ_BASE_URL",
+    )
+    groq_model_name: str = Field(
+        default="llama-3.3-70b-versatile",
+        alias="GROQ_MODEL_NAME",
+    )
+
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    openai_model_name: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL_NAME")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -76,14 +97,26 @@ class Settings(BaseSettings):
         "embedding_model_name",
         "chroma_persist_directory",
         "chroma_collection_name",
+        "llm_provider",
+        "groq_api_key",
+        "groq_base_url",
+        "groq_model_name",
+        "openai_api_key",
+        "openai_model_name",
         mode="before",
     )
     @classmethod
-    def strip_wrapping_quotes(cls, value: str) -> str:
+    def strip_wrapping_quotes(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+
         if not isinstance(value, str):
             return value
 
         value = value.strip()
+
+        if not value:
+            return None
 
         if (value.startswith('"') and value.endswith('"')) or (
             value.startswith("'") and value.endswith("'")

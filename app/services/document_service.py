@@ -6,13 +6,16 @@ from fastapi import UploadFile
 from app.core.config import get_settings
 from app.core.exceptions import BadRequestException
 from app.schemas.document import (
+    DocumentAnswerRequest,
+    DocumentAnswerResponse,
+    DocumentEvidenceRequest,
+    DocumentEvidenceResponse,
     DocumentIngestionResponse,
     DocumentSearchRequest,
     DocumentSearchResponse,
-    DocumentEvidenceRequest,
-    DocumentEvidenceResponse,
     ExtractedPageText,
 )
+from app.services.answer_generation_service import AnswerGenerationService
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
 from app.services.pdf_extraction_service import PDFExtractionService
@@ -23,7 +26,7 @@ from app.services.vector_store_service import VectorStoreService
 
 class DocumentService:
     """
-    Service layer for document ingestion, semantic search, and evidence retrieval.
+    Service layer for document ingestion, retrieval, and citation-backed answers.
     """
 
     allowed_extensions = {".pdf"}
@@ -39,6 +42,7 @@ class DocumentService:
         self.embedding_service = EmbeddingService()
         self.vector_store_service = VectorStoreService()
         self.retrieval_service = RetrievalService()
+        self.answer_generation_service = AnswerGenerationService()
 
     async def process_pdf_upload(self, file: UploadFile) -> DocumentIngestionResponse:
         settings = get_settings()
@@ -159,6 +163,56 @@ class DocumentService:
         evidence_request: DocumentEvidenceRequest,
     ) -> DocumentEvidenceResponse:
         return self.retrieval_service.retrieve_evidence(evidence_request)
+
+    def answer_question(
+        self,
+        answer_request: DocumentAnswerRequest,
+    ) -> DocumentAnswerResponse:
+        evidence_response = self.retrieve_evidence(
+            DocumentEvidenceRequest(
+                query=answer_request.question,
+                top_k=answer_request.top_k,
+            )
+        )
+
+        if not evidence_response.answer_ready:
+            fallback_answer = evidence_response.fallback_message or (
+                "I could not find enough supporting evidence in the uploaded "
+                "documents to answer this reliably."
+            )
+
+            return DocumentAnswerResponse(
+                question=answer_request.question,
+                answer=fallback_answer,
+                answer_ready=False,
+                evidence_status=evidence_response.evidence_status,
+                confidence_score=evidence_response.confidence_score,
+                citation_count=evidence_response.citation_count,
+                citations=evidence_response.citations,
+                llm_provider="none",
+                model_name=None,
+                fallback_used=True,
+            )
+
+        answer, model_name, provider_name, fallback_used = (
+            self.answer_generation_service.generate_answer(
+                question=answer_request.question,
+                citations=evidence_response.citations,
+            )
+        )
+
+        return DocumentAnswerResponse(
+            question=answer_request.question,
+            answer=answer,
+            answer_ready=True,
+            evidence_status=evidence_response.evidence_status,
+            confidence_score=evidence_response.confidence_score,
+            citation_count=evidence_response.citation_count,
+            citations=evidence_response.citations,
+            llm_provider=provider_name,
+            model_name=model_name,
+            fallback_used=fallback_used,
+        )
 
     def _clean_extracted_pages(
         self,

@@ -97,3 +97,25 @@ class DocumentEvidenceResponse(BaseModel):
     citations: list[CitationCard]
 
     fallback_message: str | None = None
+
+
+class DocumentAnswerRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class DocumentAnswerResponse(BaseModel):
+    success: bool = Field(default=True)
+    question: str
+    answer: str
+
+    answer_ready: bool
+    evidence_status: str
+    confidence_score: float
+
+    citation_count: int
+    citations: list[CitationCard]
+
+    llm_provider: str
+    model_name: str | None = None
+    fallback_used: bool = False
