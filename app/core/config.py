@@ -34,6 +34,23 @@ class Settings(BaseSettings):
     text_chunk_size_chars: int = Field(default=1200, alias="TEXT_CHUNK_SIZE_CHARS")
     text_chunk_overlap_chars: int = Field(default=200, alias="TEXT_CHUNK_OVERLAP_CHARS")
 
+    embedding_model_name: str = Field(
+        default="sentence-transformers/all-MiniLM-L6-v2",
+        alias="EMBEDDING_MODEL_NAME",
+    )
+    embedding_batch_size: int = Field(default=32, alias="EMBEDDING_BATCH_SIZE")
+
+    chroma_persist_directory: str = Field(
+        default="data/chroma",
+        alias="CHROMA_PERSIST_DIRECTORY",
+    )
+    chroma_collection_name: str = Field(
+        default="policygpt_documents",
+        alias="CHROMA_COLLECTION_NAME",
+    )
+
+    search_top_k_default: int = Field(default=5, alias="SEARCH_TOP_K_DEFAULT")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -49,16 +66,13 @@ class Settings(BaseSettings):
         "log_level",
         "backend_host",
         "cors_allowed_origins",
+        "embedding_model_name",
+        "chroma_persist_directory",
+        "chroma_collection_name",
         mode="before",
     )
     @classmethod
     def strip_wrapping_quotes(cls, value: str) -> str:
-        """
-        Docker --env-file may pass quotes literally.
-        This makes settings more forgiving if a value is accidentally written as:
-        APP_ENV="development"
-        """
-
         if not isinstance(value, str):
             return value
 

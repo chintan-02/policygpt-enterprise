@@ -1,7 +1,12 @@
 from fastapi import APIRouter, File, UploadFile
 import structlog
 
-from app.schemas.document import DocumentExtractionResponse
+from app.core.config import get_settings
+from app.schemas.document import (
+    DocumentIngestionResponse,
+    DocumentSearchRequest,
+    DocumentSearchResponse,
+)
 from app.services.document_service import DocumentService
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -10,26 +15,56 @@ logger = structlog.get_logger(__name__)
 document_service = DocumentService()
 
 
-@router.post("/upload", response_model=DocumentExtractionResponse)
+@router.post("/upload", response_model=DocumentIngestionResponse)
 async def upload_document(
     file: UploadFile = File(...),
-) -> DocumentExtractionResponse:
+) -> DocumentIngestionResponse:
     """
     Upload a policy PDF, validate it, extract text, clean text,
-    and create citation-ready chunks.
+    create chunks, generate embeddings, and store chunks in ChromaDB.
     """
 
     result = await document_service.process_pdf_upload(file)
 
     logger.info(
-        "document_processed",
+        "document_ingested",
         document_id=result.document_id,
         filename=result.filename,
         size_bytes=result.size_bytes,
         page_count=result.page_count,
         total_characters=result.total_characters,
         chunk_count=result.chunk_count,
+        stored_chunk_count=result.stored_chunk_count,
+        collection_name=result.collection_name,
         is_text_extractable=result.is_text_extractable,
+    )
+
+    return result
+
+
+@router.post("/search", response_model=DocumentSearchResponse)
+async def search_documents(
+    search_request: DocumentSearchRequest,
+) -> DocumentSearchResponse:
+    """
+    Search stored document chunks using semantic similarity.
+
+    This is retrieval only.
+    It does not generate an LLM answer yet.
+    """
+
+    settings = get_settings()
+
+    if search_request.top_k is None:
+        search_request.top_k = settings.search_top_k_default
+
+    result = document_service.search_documents(search_request)
+
+    logger.info(
+        "document_search_completed",
+        query=search_request.query,
+        top_k=search_request.top_k,
+        result_count=result.result_count,
     )
 
     return result

@@ -35,3 +35,7 @@ chroma/
 sample.pdf
 sample.pdf
 sample.pdf
+
+# Local vector database storage
+data/
+chroma/
