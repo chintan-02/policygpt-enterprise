@@ -1,3 +1,11 @@
+from ui.components.feedback import (
+    render_error_state,
+    render_no_answer_state,
+    render_no_citations_state,
+    render_no_document_state,
+    render_success_state,
+)
+
 import streamlit as st
 
 from ui.api_client import PolicyGPTAPIError, ask_question, get_backend_health, upload_document
@@ -73,7 +81,9 @@ with upload_col:
     ):
         if uploaded_file is not None:
             try:
-                with st.spinner("Extracting text, chunking, embedding, and storing..."):
+                with st.spinner(
+                    "Indexing policy PDF: extracting text, chunking, embedding, and storing in ChromaDB..."
+                ):
                     upload_data, latency_ms = upload_document(
                         filename=uploaded_file.name,
                         file_bytes=uploaded_file.getvalue(),
@@ -81,9 +91,32 @@ with upload_col:
 
                 st.session_state.last_upload = upload_data
                 st.session_state.last_upload_latency_ms = latency_ms
-                st.success("Document indexed successfully.")
+
+                # Clear old answer when a new document is indexed.
+                st.session_state.last_answer = None
+                st.session_state.last_answer_latency_ms = None
+
+                render_success_state(
+                    title="Document indexed successfully.",
+                    message="PDF uploaded, text extracted, chunks embedded, and stored in ChromaDB.",
+                )
+
             except PolicyGPTAPIError as exc:
-                st.error(str(exc))
+                render_error_state(
+                    title="Document indexing failed",
+                    message=str(exc),
+                    fix_hint="Check that the backend is running and the file is a readable PDF.",
+                )
+
+            except Exception:
+                render_error_state(
+                    title="Document indexing failed",
+                    message=(
+                        "PolicyGPT could not index this PDF. The file may be invalid, too large, "
+                        "or the backend may not be running."
+                    ),
+                    fix_hint="Check backend logs and confirm the file is a readable PDF.",
+                )
 
     if st.session_state.last_upload:
         render_upload_summary(
@@ -125,24 +158,37 @@ with ask_col:
             use_container_width=True,
         )
 
-    if submitted:
-        if not question.strip():
-            st.warning("Enter a question first.")
-        else:
-            try:
-                with st.spinner("Retrieving evidence and generating answer..."):
-                    answer_data, latency_ms = ask_question(
-                        question=question.strip(),
-                        top_k=top_k,
-                    )
+if submitted:
+    if not st.session_state.last_upload:
+        render_no_document_state()
 
-                st.session_state.last_answer = answer_data
-                st.session_state.last_answer_latency_ms = latency_ms
-            except PolicyGPTAPIError as exc:
-                st.error(str(exc))
+    elif not question.strip():
+        render_error_state(
+            title="Question is empty",
+            message="Enter a policy question before generating an answer.",
+            fix_hint="Example: What is the remote work equipment allowance?",
+        )
+
+    else:
+        try:
+            with st.spinner("Retrieving evidence and generating answer..."):
+                answer_data, latency_ms = ask_question(
+                    question=question.strip(),
+                    top_k=top_k,
+                )
+
+            st.session_state.last_answer = answer_data
+            st.session_state.last_answer_latency_ms = latency_ms
+
+        except PolicyGPTAPIError as exc:
+            render_error_state(
+                title="Request failed",
+                message=str(exc),
+                fix_hint="Check that the FastAPI backend is running and the document has been indexed.",
+            )
 
 
-if st.session_state.last_answer:
+if st.session_state.last_answer and st.session_state.last_upload:
     st.divider()
 
     answer_data = st.session_state.last_answer
@@ -159,8 +205,17 @@ if st.session_state.last_answer:
 
     citations = answer_data.get("citations", [])
 
-    if not citations:
-        st.info("No citation cards were returned for this question.")
-    else:
+    if citations:
         for index, citation in enumerate(citations, start=1):
-            render_citation_card(citation, index)
+            render_citation_card(
+                citation=citation,
+                index=index,
+            )
+    else:
+        render_no_citations_state()
+
+elif st.session_state.last_upload:
+    render_no_answer_state()
+
+else:
+    render_no_document_state()

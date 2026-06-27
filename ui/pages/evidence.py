@@ -1,3 +1,9 @@
+from ui.components.citation_card import render_citation_card
+from ui.components.feedback import (
+    render_error_state,
+    render_no_citations_state,
+)
+
 import streamlit as st
 
 from ui.api_client import PolicyGPTAPIError, get_backend_health, retrieve_evidence
@@ -65,7 +71,11 @@ if submitted:
             st.session_state.last_evidence = evidence_data
             st.session_state.last_evidence_latency_ms = latency_ms
         except PolicyGPTAPIError as exc:
-            st.error(str(exc))
+            render_error_state(
+                title="Evidence retrieval failed",
+                message=str(exc),
+                fix_hint="Check that the FastAPI backend is running and a document has been indexed.",
+            )
 
 
 if st.session_state.last_evidence:
@@ -92,9 +102,17 @@ if st.session_state.last_evidence:
             "Try rephrasing the query or uploading a more relevant policy document."
         )
     else:
+        st.markdown("## Retrieved citation cards")
+
+        citations = evidence_response.get("citations", [])
+        threshold = evidence_response.get("min_retrieval_score")
+
+    if citations:
         for index, citation in enumerate(citations, start=1):
             render_citation_card(
-                citation=citation,
-                index=index,
-                threshold=threshold,
-            )
+            citation=citation,
+            index=index,
+            threshold=threshold,
+        )
+    else:
+        render_no_citations_state()
