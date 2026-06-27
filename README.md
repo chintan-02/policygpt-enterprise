@@ -31,6 +31,9 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 * Evidence Explorer page
 * Architecture overview page
 * README and demo documentation
+* Clean citation preview formatting
+* Professional empty, loading, and error UI states
+* Backend health endpoint with safe RAG configuration details
 
 ### Planned Later
 
@@ -221,6 +224,23 @@ The UI includes:
 * Architecture page
 
 The goal is to show how the RAG system behaves, not just display an answer.
+
+---
+
+### Production-Style Polish
+
+PolicyGPT includes small but important product-quality details:
+
+* clean citation previews without noisy PDF boilerplate
+* loading spinners during indexing, retrieval, and answer generation
+* clear empty states before document upload
+* clear state when a PDF is selected but not indexed
+* friendly error messages for backend/API failures
+* safe fallback state when no citation evidence is available
+* backend health endpoint showing safe RAG configuration details
+* API keys are never exposed through health checks or UI responses
+
+These details make the project feel closer to an enterprise document intelligence product rather than a simple prototype.
 
 ---
 
