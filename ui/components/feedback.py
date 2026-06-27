@@ -70,7 +70,7 @@ def render_no_document_state() -> None:
             "Upload a policy PDF and click **Index document** before asking questions. "
             "PolicyGPT needs indexed document evidence before it can generate citation-backed answers."
         ),
-        action_hint="Try the sample file: examples/sample_hr_policy.pdf",
+        action_hint="Demo file: examples/sample_hr_policy.pdf",
     )
 
 

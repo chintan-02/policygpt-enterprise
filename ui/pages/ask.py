@@ -158,9 +158,12 @@ with ask_col:
             use_container_width=True,
         )
 
+feedback_rendered = False
+
 if submitted:
     if not st.session_state.last_upload:
         render_no_document_state()
+        feedback_rendered = True
 
     elif not question.strip():
         render_error_state(
@@ -168,6 +171,7 @@ if submitted:
             message="Enter a policy question before generating an answer.",
             fix_hint="Example: What is the remote work equipment allowance?",
         )
+        feedback_rendered = True
 
     else:
         try:
@@ -186,6 +190,7 @@ if submitted:
                 message=str(exc),
                 fix_hint="Check that the FastAPI backend is running and the document has been indexed.",
             )
+            feedback_rendered = True
 
 
 if st.session_state.last_answer and st.session_state.last_upload:
@@ -214,8 +219,8 @@ if st.session_state.last_answer and st.session_state.last_upload:
     else:
         render_no_citations_state()
 
-elif st.session_state.last_upload:
+elif st.session_state.last_upload and not feedback_rendered:
     render_no_answer_state()
 
-else:
+elif not feedback_rendered:
     render_no_document_state()
