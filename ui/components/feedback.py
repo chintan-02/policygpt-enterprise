@@ -73,6 +73,17 @@ def render_no_document_state() -> None:
         action_hint="Demo file: examples/sample_hr_policy.pdf",
     )
 
+def render_document_selected_state() -> None:
+    """Render state when a PDF is selected but not indexed yet."""
+    render_empty_state(
+        title="PDF selected — index document to continue",
+        message=(
+            "A policy PDF has been selected, but it has not been indexed yet. "
+            "Click **Index document** to extract text, create chunks, generate embeddings, "
+            "and store the document in ChromaDB."
+        ),
+        action_hint="Indexing is required before PolicyGPT can generate citation-backed answers.",
+    )
 
 def render_no_answer_state() -> None:
     """Render empty state before the first question is answered."""

@@ -1,4 +1,5 @@
 from ui.components.feedback import (
+    render_document_selected_state,
     render_error_state,
     render_no_answer_state,
     render_no_citations_state,
@@ -160,8 +161,14 @@ with ask_col:
 
 feedback_rendered = False
 
+feedback_rendered = False
+
 if submitted:
-    if not st.session_state.last_upload:
+    if not st.session_state.last_upload and uploaded_file is not None:
+        render_document_selected_state()
+        feedback_rendered = True
+
+    elif not st.session_state.last_upload:
         render_no_document_state()
         feedback_rendered = True
 
@@ -221,6 +228,9 @@ if st.session_state.last_answer and st.session_state.last_upload:
 
 elif st.session_state.last_upload and not feedback_rendered:
     render_no_answer_state()
+
+elif uploaded_file is not None and not feedback_rendered:
+    render_document_selected_state()
 
 elif not feedback_rendered:
     render_no_document_state()
