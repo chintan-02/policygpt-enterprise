@@ -46,6 +46,63 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 
 ---
 
+## Screenshots
+
+### Document Ingestion Console
+
+The system shows backend connection status, PDF upload, document indexing, page count, chunk count, stored vector count, and ChromaDB collection name.
+
+<img src="screenshots/01-dashboard-upload.png" alt="PolicyGPT document ingestion dashboard" width="900"/>
+
+---
+
+### Citation-Backed Answer
+
+PolicyGPT retrieves evidence first, generates an answer only when evidence passes the threshold, and returns citation cards with page-level source information.
+
+<img src="screenshots/02-citation-backed-answer.png" alt="PolicyGPT citation-backed answer with evidence score and citation card" width="900"/>
+
+---
+
+### AI Policy and Data Privacy Question
+
+The system answers compliance-style questions about confidential data and AI tools using only uploaded policy evidence.
+
+<img src="screenshots/03-ai-policy-answer.png" alt="PolicyGPT AI policy answer with strong evidence and citations" width="900"/>
+
+---
+
+### Unsupported Question Fallback
+
+When the uploaded document does not contain enough supporting evidence, PolicyGPT skips generation and returns a safe fallback response.
+
+<img src="screenshots/04-unsupported-fallback.png" alt="PolicyGPT unsupported question fallback with no citations" width="900"/>
+
+---
+
+### Evidence Explorer
+
+The Evidence Explorer exposes the retrieval layer before generation, including evidence status, confidence score, threshold, retrieval trace, and retrieved citation cards.
+
+<img src="screenshots/05-evidence-explorer.png" alt="PolicyGPT evidence explorer with retrieval trace and citation cards" width="900"/>
+
+---
+
+### Architecture Page
+
+The architecture page explains the full RAG flow from PDF upload to citation-backed answer generation.
+
+<img src="screenshots/06-architecture-page.png" alt="PolicyGPT architecture page showing RAG system flow" width="900"/>
+
+---
+
+### FastAPI Backend
+
+The backend exposes documented API endpoints for health checks, document upload, semantic search, evidence retrieval, and question answering.
+
+<img src="screenshots/07-fastapi-docs.png" alt="PolicyGPT FastAPI Swagger documentation" width="900"/>
+
+
 ## Why This Project Matters
 
 Many RAG demos follow a simple pattern:
