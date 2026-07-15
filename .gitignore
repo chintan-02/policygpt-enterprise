@@ -23,6 +23,8 @@ env/
 # Logs
 *.log
 logs/*.jsonl
+eval/results/*.json
+eval/results/*.csv
 
 # Python build files
 build/

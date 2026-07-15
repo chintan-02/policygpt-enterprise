@@ -2,14 +2,15 @@
 
 ## Purpose
 
-This directory contains the human-authored ground truth for Phase 2, Step 11.
-It is a compact benchmark for checking whether PolicyGPT retrieves the right
-policy pages, cites them, includes material answer facts, and declines questions
-that the source cannot support.
+This directory contains the human-authored ground truth from Phase 2, Step 11
+and the repeatable evaluation runner added in Step 12. The benchmark checks
+whether PolicyGPT retrieves the right policy pages, cites them, includes material
+answer facts, and declines questions that the source cannot support.
 
-Step 11 defines and validates the dataset only. Step 12 will implement automated
-execution and scoring. Nothing in this directory calls the API, an embedding
-model, ChromaDB, Groq, or OpenAI.
+`scoring.py` contains pure, unit-tested scoring functions. `run_eval.py` owns the
+CLI, HTTP calls, response validation, orchestration, and result writing. The
+runner calls the existing PolicyGPT API; it does not import or duplicate the
+production retrieval or answer-generation pipeline.
 
 ## Source document
 
@@ -119,13 +120,101 @@ IDs, supported/unsupported ground-truth rules, allowed values, and the exact
 difficulty distribution. The tests additionally verify page bounds against the
 actual PDF and confirm that supported keywords occur on their expected pages.
 
+## Running the evaluation
+
+The evaluation requires a running FastAPI backend and an indexed source
+document. Start the backend from the project root:
+
+```bash
+python -m uvicorn app.api.main:app \
+  --reload \
+  --reload-dir app \
+  --host 0.0.0.0 \
+  --port 8000
+```
+
+Before comparing metrics, reset the vector collection manually and index
+`examples/sample_hr_policy.pdf` exactly once. The runner never deletes or
+modifies ChromaDB data.
+
+Run all 16 questions:
+
+```bash
+python eval/run_eval.py
+```
+
+Run one exact benchmark record for debugging:
+
+```bash
+python eval/run_eval.py --question-id remote_work_001
+```
+
+Run only the first three records:
+
+```bash
+python eval/run_eval.py --limit 3
+```
+
+Other options configure the base URL, dataset, output directory, retrieval
+`top_k`, request timeout, health-check behavior, and whether the first request
+error should stop the run. `--limit` and `--question-id` are mutually exclusive.
+
+### Metrics
+
+- **Answer readiness accuracy:** Fraction of all evaluated cases where
+  `answer_ready` equals the benchmark's `should_answer` value.
+- **Fallback accuracy:** Fraction of unsupported cases that return
+  `answer_ready=false`, `fallback_used=true`, and zero citations.
+- **Retrieval page hit rate:** Fraction of successfully processed supported
+  cases where at least one expected page is cited.
+- **Keyword match rate:** Macro average of supported-case keyword match scores.
+  Unsupported cases have a null keyword score and are excluded.
+- **Average confidence:** Mean API-provided confidence across successfully
+  processed cases; the runner does not recalculate confidence.
+- **Average supported confidence:** Mean API confidence for successfully
+  processed supported cases only.
+- **Average latency:** Mean client-observed end-to-end request latency.
+- **Average citations:** Mean citation count across all evaluated cases.
+
+Confidence is recorded as observed data and is not a Step 12 pass/fail gate.
+A supported case passes only when it is answer-ready, cites an expected page,
+and matches every expected keyword. An unsupported case passes only when it
+uses the zero-citation fallback correctly.
+
+### Result files and exit codes
+
+Each completed run atomically replaces:
+
+```text
+eval/results/latest_eval_results.json
+eval/results/latest_eval_results.csv
+```
+
+The JSON artifact is the source of truth for run metadata, aggregate metrics,
+and per-question results. The CSV contains one row per question and serializes
+list fields as JSON strings. Both generated files are ignored by Git; only
+`eval/results/.gitkeep` is tracked.
+
+The runner returns exit code 0 when the evaluation completes, even if individual
+cases fail. It returns non-zero for invalid arguments or datasets, an unavailable
+required health check, result-writing failure, or a request error when
+`--fail-on-request-error` is enabled.
+
+If repeated citation cards share the same filename, page, chunk index, and
+excerpt, the runner records their count and prints a duplicate-citation warning.
+This warning does not fail a case and never triggers an automatic ChromaDB reset.
+
 ## Limitations and preparation for Step 12
 
 - This small benchmark covers one fictional handbook and is not statistically
   representative of real HR or compliance corpora.
 - Keyword ground truth cannot capture every acceptable answer formulation.
+- Keyword matching is normalized exact phrase matching; it intentionally does
+  not use stemming, fuzzy matching, embeddings, or semantic similarity.
 - Expected pages identify source relevance; they do not prescribe a future
   retrieval rank or confidence score.
+- Latency is measured by the client and includes local networking and API work,
+  so it is not a provider-only or server-only timing measurement.
 - Unsupported questions verify absence from this source, not truth in the real
   world or applicability of external law.
 - This benchmark is for software evaluation only and does not represent legal,
