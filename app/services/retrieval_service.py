@@ -1,9 +1,16 @@
 from app.core.config import get_settings
 from app.schemas.document import (
     CitationCard,
+    ConfidenceBreakdown,
     DocumentEvidenceRequest,
     DocumentEvidenceResponse,
     DocumentSearchResult,
+)
+from app.services.confidence_service import (
+    ConfidenceAssessment,
+    ConfidenceConfig,
+    EvidenceCandidate,
+    assess_confidence,
 )
 from app.services.embedding_service import EmbeddingService
 from app.services.vector_store_service import VectorStoreService
@@ -21,6 +28,27 @@ class RetrievalService:
 
     def __init__(self) -> None:
         self.settings = get_settings()
+        self.confidence_config = ConfidenceConfig(
+            candidate_retrieval_floor=self.settings.rag_candidate_retrieval_floor,
+            direct_support_score_floor=(
+                self.settings.rag_direct_support_score_floor
+            ),
+            direct_support_coverage_min=(
+                self.settings.rag_direct_support_coverage_min
+            ),
+            weak_confidence_threshold=(
+                self.settings.rag_weak_confidence_threshold
+            ),
+            moderate_confidence_threshold=(
+                self.settings.rag_moderate_confidence_threshold
+            ),
+            strong_confidence_threshold=(
+                self.settings.rag_strong_confidence_threshold
+            ),
+            max_evidence_chunks=(
+                self.settings.rag_confidence_max_evidence_chunks
+            ),
+        )
         self.embedding_service = EmbeddingService()
         self.vector_store_service = VectorStoreService()
 
@@ -41,15 +69,24 @@ class RetrievalService:
             sum(raw_scores) / len(raw_scores) if raw_scores else 0.0
         )
 
-        citation_cards = self._build_citation_cards(raw_results)
-
-        evidence_status = self._get_evidence_status(citation_cards)
-        confidence_score = self._calculate_confidence_score(citation_cards)
-        answer_ready = evidence_status in {"strong", "moderate", "weak"}
+        candidate_results = self._select_candidate_results(raw_results)
+        assessment = assess_confidence(
+            query=evidence_request.query,
+            candidates=[
+                EvidenceCandidate(text=result.text, score=result.score)
+                for result in candidate_results
+            ],
+            config=self.confidence_config,
+        )
+        citation_cards = (
+            self._build_citation_cards(candidate_results)
+            if assessment.answer_ready
+            else []
+        )
 
         fallback_message = None
 
-        if not answer_ready:
+        if not assessment.answer_ready:
             fallback_message = (
                 "I could not find enough supporting evidence in the uploaded "
                 "documents to answer this question reliably."
@@ -58,16 +95,43 @@ class RetrievalService:
         return DocumentEvidenceResponse(
             query=evidence_request.query,
             top_k=evidence_request.top_k,
-            answer_ready=answer_ready,
-            evidence_status=evidence_status,
-            confidence_score=confidence_score,
+            answer_ready=assessment.answer_ready,
+            evidence_status=assessment.evidence_status,
+            confidence_score=assessment.public_confidence_score,
             top_retrieval_score=round(top_retrieval_score, 4),
             average_retrieval_score=round(average_retrieval_score, 4),
-            min_retrieval_score=self.settings.min_retrieval_score,
+            min_retrieval_score=self.settings.rag_candidate_retrieval_floor,
+            confidence_breakdown=self._build_confidence_breakdown(assessment),
             citation_count=len(citation_cards),
             citations=citation_cards,
             fallback_message=fallback_message,
         )
+
+    def _select_candidate_results(
+        self,
+        raw_results: list[DocumentSearchResult],
+    ) -> list[DocumentSearchResult]:
+        candidate_results: list[DocumentSearchResult] = []
+        seen_candidate_keys: set[str] = set()
+
+        for result in sorted(raw_results, key=lambda item: item.score, reverse=True):
+            if result.score < self.settings.rag_candidate_retrieval_floor:
+                continue
+
+            dedupe_key = self._build_dedupe_key(result)
+            if dedupe_key in seen_candidate_keys:
+                continue
+
+            seen_candidate_keys.add(dedupe_key)
+            candidate_results.append(result)
+
+            if (
+                len(candidate_results)
+                >= self.settings.rag_confidence_max_evidence_chunks
+            ):
+                break
+
+        return candidate_results
 
     def _build_citation_cards(
         self,
@@ -77,9 +141,6 @@ class RetrievalService:
         seen_citation_keys: set[str] = set()
 
         for result in raw_results:
-            if result.score < self.settings.min_retrieval_score:
-                continue
-
             dedupe_key = self._build_dedupe_key(result)
 
             if dedupe_key in seen_citation_keys:
@@ -148,35 +209,28 @@ class RetrievalService:
 
         return text[:cutoff].strip() + "..."
 
-    def _get_evidence_status(self, citation_cards: list[CitationCard]) -> str:
-        if not citation_cards:
-            return "insufficient"
-
-        top_score = citation_cards[0].retrieval_score
-
-        if top_score >= 0.65:
-            return "strong"
-
-        if top_score >= 0.45:
-            return "moderate"
-
-        if top_score >= self.settings.min_retrieval_score:
-            return "weak"
-
-        return "insufficient"
-
-    def _calculate_confidence_score(
+    def _build_confidence_breakdown(
         self,
-        citation_cards: list[CitationCard],
-    ) -> float:
-        if not citation_cards:
-            return 0.0
-
-        top_score = citation_cards[0].retrieval_score
-        average_score = sum(card.retrieval_score for card in citation_cards) / len(
-            citation_cards
+        assessment: ConfidenceAssessment,
+    ) -> ConfidenceBreakdown:
+        return ConfidenceBreakdown(
+            answerability_score=assessment.answerability_score,
+            top_retrieval_score=assessment.top_retrieval_score,
+            average_retrieval_score=assessment.average_retrieval_score,
+            retrieval_margin=assessment.retrieval_margin,
+            lexical_coverage=assessment.lexical_coverage,
+            top_chunk_lexical_coverage=(
+                assessment.top_chunk_lexical_coverage
+            ),
+            numeric_consistency=assessment.numeric_consistency,
+            numeric_mismatch=assessment.numeric_mismatch,
+            query_numeric_claims=assessment.query_numeric_claims,
+            evidence_numeric_claims=assessment.evidence_numeric_claims,
+            missing_numeric_claims=assessment.missing_numeric_claims,
+            scope_risk=assessment.scope_risk,
+            scope_risk_reason=assessment.scope_risk_reason,
+            matched_query_terms=assessment.matched_query_terms,
+            missing_query_terms=assessment.missing_query_terms,
+            direct_support=assessment.direct_support,
+            decision_reasons=assessment.decision_reasons,
         )
-
-        confidence_score = (top_score * 0.7) + (average_score * 0.3)
-
-        return round(max(0.0, min(1.0, confidence_score)), 4)

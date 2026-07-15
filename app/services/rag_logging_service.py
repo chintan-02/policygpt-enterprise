@@ -14,7 +14,7 @@ _MAX_ERROR_TYPE_LENGTH = 100
 _MAX_ERROR_MESSAGE_LENGTH = 500
 _SENSITIVE_ERROR_PATTERN = re.compile(
     r"api[_-]?key|groq_api_key|openai_api_key|evidence[_ -]?text|"
-    r"system[_ -]?prompt|user[_ -]?prompt|provider[_ -]?payload",
+    r"system[_ -]?prompt|user[_ -]?prompt|provider[_ -]?payload|embedding",
     flags=re.IGNORECASE,
 )
 
@@ -42,6 +42,9 @@ class RAGLoggingService:
                     "error_type": self._sanitize_error_type(entry.error_type),
                     "error_message": self._sanitize_error_message(
                         entry.error_message
+                    ),
+                    "decision_reasons": self._sanitize_decision_reasons(
+                        entry.decision_reasons
                     ),
                 }
             )
@@ -78,3 +81,13 @@ class RAGLoggingService:
             return "[redacted sensitive error message]"
 
         return sanitized[:_MAX_ERROR_MESSAGE_LENGTH]
+
+    def _sanitize_decision_reasons(self, reasons: list[str]) -> list[str]:
+        sanitized_reasons: list[str] = []
+
+        for reason in reasons[:10]:
+            sanitized = self._sanitize_error_message(reason)
+            if sanitized:
+                sanitized_reasons.append(sanitized)
+
+        return sanitized_reasons

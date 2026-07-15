@@ -90,6 +90,26 @@ class DocumentEvidenceRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
 
 
+class ConfidenceBreakdown(BaseModel):
+    answerability_score: float = Field(..., ge=0.0, le=1.0)
+    top_retrieval_score: float = Field(..., ge=0.0, le=1.0)
+    average_retrieval_score: float = Field(..., ge=0.0, le=1.0)
+    retrieval_margin: float = Field(..., ge=0.0, le=1.0)
+    lexical_coverage: float = Field(..., ge=0.0, le=1.0)
+    top_chunk_lexical_coverage: float = Field(..., ge=0.0, le=1.0)
+    numeric_consistency: float | None = Field(default=None, ge=0.0, le=1.0)
+    numeric_mismatch: bool
+    query_numeric_claims: list[str]
+    evidence_numeric_claims: list[str]
+    missing_numeric_claims: list[str]
+    scope_risk: bool
+    scope_risk_reason: str | None = None
+    matched_query_terms: list[str]
+    missing_query_terms: list[str]
+    direct_support: bool
+    decision_reasons: list[str]
+
+
 class DocumentEvidenceResponse(BaseModel):
     success: bool = Field(default=True)
     query: str
@@ -101,6 +121,7 @@ class DocumentEvidenceResponse(BaseModel):
     top_retrieval_score: float
     average_retrieval_score: float
     min_retrieval_score: float
+    confidence_breakdown: ConfidenceBreakdown | None = None
 
     citation_count: int
     citations: list[CitationCard]
@@ -121,6 +142,7 @@ class DocumentAnswerResponse(BaseModel):
     answer_ready: bool
     evidence_status: str
     confidence_score: float
+    confidence_breakdown: ConfidenceBreakdown | None = None
 
     citation_count: int
     citations: list[CitationCard]

@@ -205,6 +205,7 @@ class DocumentService:
                     answer_ready=False,
                     evidence_status=evidence_response.evidence_status,
                     confidence_score=evidence_response.confidence_score,
+                    confidence_breakdown=evidence_response.confidence_breakdown,
                     citation_count=evidence_response.citation_count,
                     citations=evidence_response.citations,
                     llm_provider=llm_provider,
@@ -233,6 +234,7 @@ class DocumentService:
                     answer_ready=True,
                     evidence_status=evidence_response.evidence_status,
                     confidence_score=evidence_response.confidence_score,
+                    confidence_breakdown=evidence_response.confidence_breakdown,
                     citation_count=evidence_response.citation_count,
                     citations=evidence_response.citations,
                     llm_provider=llm_provider,
@@ -280,6 +282,11 @@ class DocumentService:
     ) -> None:
         try:
             citations = evidence_response.citations if evidence_response else []
+            confidence_breakdown = (
+                evidence_response.confidence_breakdown
+                if evidence_response
+                else None
+            )
             retrieved_pages = sorted({citation.page_number for citation in citations})
             retrieved_filenames = sorted(
                 {citation.filename for citation in citations if citation.filename}
@@ -307,15 +314,59 @@ class DocumentService:
                 confidence_score=(
                     evidence_response.confidence_score if evidence_response else 0.0
                 ),
+                answerability_score=(
+                    confidence_breakdown.answerability_score
+                    if confidence_breakdown
+                    else 0.0
+                ),
                 top_retrieval_score=(
-                    evidence_response.top_retrieval_score
+                    confidence_breakdown.top_retrieval_score
+                    if confidence_breakdown
+                    else evidence_response.top_retrieval_score
                     if evidence_response
                     else 0.0
                 ),
                 average_retrieval_score=(
-                    evidence_response.average_retrieval_score
+                    confidence_breakdown.average_retrieval_score
+                    if confidence_breakdown
+                    else evidence_response.average_retrieval_score
                     if evidence_response
                     else 0.0
+                ),
+                retrieval_margin=(
+                    confidence_breakdown.retrieval_margin
+                    if confidence_breakdown
+                    else 0.0
+                ),
+                lexical_coverage=(
+                    confidence_breakdown.lexical_coverage
+                    if confidence_breakdown
+                    else 0.0
+                ),
+                top_chunk_lexical_coverage=(
+                    confidence_breakdown.top_chunk_lexical_coverage
+                    if confidence_breakdown
+                    else 0.0
+                ),
+                numeric_mismatch=(
+                    confidence_breakdown.numeric_mismatch
+                    if confidence_breakdown
+                    else False
+                ),
+                scope_risk=(
+                    confidence_breakdown.scope_risk
+                    if confidence_breakdown
+                    else False
+                ),
+                direct_support=(
+                    confidence_breakdown.direct_support
+                    if confidence_breakdown
+                    else False
+                ),
+                decision_reasons=(
+                    confidence_breakdown.decision_reasons
+                    if confidence_breakdown
+                    else []
                 ),
                 citation_count=(
                     evidence_response.citation_count if evidence_response else 0

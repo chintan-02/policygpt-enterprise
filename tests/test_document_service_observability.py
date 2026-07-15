@@ -7,11 +7,13 @@ import pytest
 from app.core.config import Settings
 from app.schemas.document import (
     CitationCard,
+    ConfidenceBreakdown,
     DocumentAnswerRequest,
     DocumentEvidenceRequest,
     DocumentEvidenceResponse,
     DocumentSearchResult,
 )
+from app.services.confidence_service import ConfidenceConfig
 from app.services.document_service import DocumentService
 from app.services.rag_logging_service import RAGLoggingService
 from app.services.retrieval_service import RetrievalService
@@ -53,6 +55,7 @@ def _evidence(
     citations: list[CitationCard] | None = None,
     top_score: float = 0.88,
     average_score: float = 0.61,
+    confidence_breakdown: ConfidenceBreakdown | None = None,
 ) -> DocumentEvidenceResponse:
     citation_list = citations or []
     return DocumentEvidenceResponse(
@@ -64,6 +67,7 @@ def _evidence(
         top_retrieval_score=top_score,
         average_retrieval_score=average_score,
         min_retrieval_score=0.45,
+        confidence_breakdown=confidence_breakdown,
         citation_count=len(citation_list),
         citations=citation_list,
         fallback_message=(
@@ -100,8 +104,28 @@ def test_supported_answer_creates_one_complete_record(tmp_path: Path) -> None:
         _citation(page_number=2, filename="policy-a.pdf", chunk_index=2, score=0.7),
         _citation(page_number=6, filename="policy-b.pdf", chunk_index=3, score=0.6),
     ]
+    confidence_breakdown = ConfidenceBreakdown(
+        answerability_score=0.72,
+        top_retrieval_score=0.80,
+        average_retrieval_score=0.70,
+        retrieval_margin=0.30,
+        lexical_coverage=0.85,
+        top_chunk_lexical_coverage=0.75,
+        numeric_consistency=None,
+        numeric_mismatch=False,
+        query_numeric_claims=[],
+        evidence_numeric_claims=[],
+        missing_numeric_claims=[],
+        scope_risk=False,
+        scope_risk_reason=None,
+        matched_query_terms=["cover"],
+        missing_query_terms=[],
+        direct_support=True,
+        decision_reasons=["Direct policy support was found."],
+    )
     service.retrieval_service.retrieve_evidence.return_value = _evidence(
-        citations=citations
+        citations=citations,
+        confidence_breakdown=confidence_breakdown,
     )
     service.answer_generation_service.generate_answer.return_value = (
         "The policy covers the allowance.",
@@ -121,8 +145,16 @@ def test_supported_answer_creates_one_complete_record(tmp_path: Path) -> None:
     assert record["answer_ready"] is True
     assert record["retrieved_pages"] == [2, 6]
     assert record["retrieved_filenames"] == ["policy-a.pdf", "policy-b.pdf"]
-    assert record["top_retrieval_score"] == 0.88
-    assert record["average_retrieval_score"] == 0.61
+    assert record["answerability_score"] == 0.72
+    assert record["top_retrieval_score"] == 0.8
+    assert record["average_retrieval_score"] == 0.7
+    assert record["retrieval_margin"] == 0.3
+    assert record["lexical_coverage"] == 0.85
+    assert record["top_chunk_lexical_coverage"] == 0.75
+    assert record["numeric_mismatch"] is False
+    assert record["scope_risk"] is False
+    assert record["direct_support"] is True
+    assert record["decision_reasons"] == ["Direct policy support was found."]
     assert record["top_k"] == 7
     assert record["min_retrieval_score"] == 0.45
     assert record["latency_ms"] >= 0
@@ -214,12 +246,13 @@ def test_unexpected_exception_logs_error_defaults_and_reraises(
     assert record["model_name"] is None
     assert record["fallback_used"] is True
     assert record["error_type"] == "RuntimeError"
-    assert record["error_message"] == "embedding unavailable"
+    assert record["error_message"] == "[redacted sensitive error message]"
 
 
 def test_retrieval_metrics_use_raw_results_before_filtering(tmp_path: Path) -> None:
     service = RetrievalService.__new__(RetrievalService)
     service.settings = _settings(tmp_path / "unused.jsonl")
+    service.confidence_config = ConfidenceConfig()
     service.embedding_service = Mock()
     service.embedding_service.embed_query.return_value = [0.1, 0.2]
     service.vector_store_service = Mock()
@@ -229,8 +262,8 @@ def test_retrieval_metrics_use_raw_results_before_filtering(tmp_path: Path) -> N
             filename="policy.pdf",
             page_number=1,
             chunk_index=1,
-            text="Relevant evidence.",
-            char_count=18,
+            text="Relevant covered policy evidence.",
+            char_count=33,
             score=0.8,
         ),
         DocumentSearchResult(

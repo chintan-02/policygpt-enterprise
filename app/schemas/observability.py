@@ -15,8 +15,16 @@ class RAGQueryLogEntry(BaseModel):
     answer_ready: bool
     evidence_status: str = Field(..., min_length=1)
     confidence_score: float = Field(..., ge=0.0, le=1.0)
+    answerability_score: float = Field(default=0.0, ge=0.0, le=1.0)
     top_retrieval_score: float = Field(..., ge=0.0, le=1.0)
     average_retrieval_score: float = Field(..., ge=0.0, le=1.0)
+    retrieval_margin: float = Field(default=0.0, ge=0.0, le=1.0)
+    lexical_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    top_chunk_lexical_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    numeric_mismatch: bool = False
+    scope_risk: bool = False
+    direct_support: bool = False
+    decision_reasons: list[str] = Field(default_factory=list)
     citation_count: int = Field(..., ge=0)
     retrieved_pages: list[PageNumber]
     retrieved_filenames: list[str]

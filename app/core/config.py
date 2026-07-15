@@ -1,8 +1,8 @@
 import json
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -65,6 +65,47 @@ class Settings(BaseSettings):
     search_top_k_default: int = Field(default=5, alias="SEARCH_TOP_K_DEFAULT")
 
     min_retrieval_score: float = Field(default=0.45, alias="MIN_RETRIEVAL_SCORE")
+    rag_candidate_retrieval_floor: float = Field(
+        default=0.30,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_CANDIDATE_RETRIEVAL_FLOOR",
+    )
+    rag_direct_support_score_floor: float = Field(
+        default=0.35,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_DIRECT_SUPPORT_SCORE_FLOOR",
+    )
+    rag_direct_support_coverage_min: float = Field(
+        default=0.60,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_DIRECT_SUPPORT_COVERAGE_MIN",
+    )
+    rag_weak_confidence_threshold: float = Field(
+        default=0.40,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_WEAK_CONFIDENCE_THRESHOLD",
+    )
+    rag_moderate_confidence_threshold: float = Field(
+        default=0.55,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_MODERATE_CONFIDENCE_THRESHOLD",
+    )
+    rag_strong_confidence_threshold: float = Field(
+        default=0.75,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_STRONG_CONFIDENCE_THRESHOLD",
+    )
+    rag_confidence_max_evidence_chunks: int = Field(
+        default=3,
+        ge=1,
+        alias="RAG_CONFIDENCE_MAX_EVIDENCE_CHUNKS",
+    )
     citation_excerpt_max_chars: int = Field(
         default=450,
         alias="CITATION_EXCERPT_MAX_CHARS",
@@ -82,6 +123,22 @@ class Settings(BaseSettings):
     )
     llm_max_output_tokens: int = Field(default=700, alias="LLM_MAX_OUTPUT_TOKENS")
     llm_temperature: float = Field(default=0.1, alias="LLM_TEMPERATURE")
+    llm_max_retries: int = Field(
+        default=2,
+        ge=0,
+        le=5,
+        alias="LLM_MAX_RETRIES",
+    )
+    llm_retry_base_delay_seconds: float = Field(
+        default=1.0,
+        ge=0.0,
+        alias="LLM_RETRY_BASE_DELAY_SECONDS",
+    )
+    llm_retry_max_delay_seconds: float = Field(
+        default=5.0,
+        ge=0.0,
+        alias="LLM_RETRY_MAX_DELAY_SECONDS",
+    )
 
     groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
     groq_base_url: str = Field(
@@ -142,6 +199,37 @@ class Settings(BaseSettings):
             return value[1:-1].strip()
 
         return value
+
+    @model_validator(mode="after")
+    def validate_ordered_settings(self) -> Self:
+        if (
+            self.rag_candidate_retrieval_floor
+            > self.rag_direct_support_score_floor
+        ):
+            raise ValueError(
+                "RAG_CANDIDATE_RETRIEVAL_FLOOR must be less than or equal to "
+                "RAG_DIRECT_SUPPORT_SCORE_FLOOR."
+            )
+
+        if not (
+            self.rag_weak_confidence_threshold
+            < self.rag_moderate_confidence_threshold
+            < self.rag_strong_confidence_threshold
+        ):
+            raise ValueError(
+                "RAG confidence thresholds must satisfy weak < moderate < strong."
+            )
+
+        if (
+            self.llm_retry_max_delay_seconds
+            < self.llm_retry_base_delay_seconds
+        ):
+            raise ValueError(
+                "LLM_RETRY_MAX_DELAY_SECONDS must be greater than or equal to "
+                "LLM_RETRY_BASE_DELAY_SECONDS."
+            )
+
+        return self
 
     @property
     def cors_origins_list(self) -> list[str]:

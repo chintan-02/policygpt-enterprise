@@ -125,6 +125,9 @@ def test_output_omits_sensitive_error_content(tmp_path: Path) -> None:
         _entry(
             error_type="Provider Error!",
             error_message=sensitive_message,
+            decision_reasons=[
+                "The embedding payload included evidence_text content."
+            ],
         )
     )
 
@@ -136,3 +139,6 @@ def test_output_omits_sensitive_error_content(tmp_path: Path) -> None:
     record = json.loads(output)
     assert record["error_type"] == "provider_error_"
     assert record["error_message"] == "[redacted sensitive error message]"
+    assert record["decision_reasons"] == [
+        "[redacted sensitive error message]"
+    ]

@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 import requests
@@ -93,6 +93,28 @@ def _supported_payload(**overrides: object) -> dict[str, object]:
     return payload
 
 
+def _confidence_breakdown() -> dict[str, object]:
+    return {
+        "answerability_score": 0.72,
+        "top_retrieval_score": 0.70,
+        "average_retrieval_score": 0.62,
+        "retrieval_margin": 0.40,
+        "lexical_coverage": 0.80,
+        "top_chunk_lexical_coverage": 0.75,
+        "numeric_consistency": 1.0,
+        "numeric_mismatch": False,
+        "query_numeric_claims": ["CAD:300"],
+        "evidence_numeric_claims": ["CAD:300"],
+        "missing_numeric_claims": [],
+        "scope_risk": False,
+        "scope_risk_reason": None,
+        "matched_query_terms": ["allowance", "equipment"],
+        "missing_query_terms": [],
+        "direct_support": True,
+        "decision_reasons": ["Direct evidence support was found."],
+    }
+
+
 def _unsupported_payload() -> dict[str, object]:
     return {
         "question": _unsupported_record()["question"],
@@ -136,7 +158,7 @@ def test_health_check_success() -> None:
 
     result = check_backend_health(session, "http://localhost:8000", 5.0)
 
-    assert result["response"] == {"status": "healthy"}
+    assert result["status"] == "healthy"
     assert result["latency_ms"] >= 0
 
 
@@ -161,6 +183,44 @@ def test_successful_supported_answer() -> None:
     assert result["page_hit"] is True
     assert result["keyword_match_score"] == 1.0
     assert result["error_type"] is None
+
+
+def test_confidence_breakdown_is_optional_and_defaults_safely() -> None:
+    result = evaluate_record(
+        _session_with_post(FakeResponse(_supported_payload())),
+        _supported_record(),
+        "http://localhost:8000",
+        5,
+        60.0,
+    )
+
+    assert result["confidence_breakdown"] is None
+    assert result["answerability_score"] == 0.0
+    assert result["decision_reasons"] == []
+
+
+def test_confidence_breakdown_is_saved_as_safe_diagnostics() -> None:
+    result = evaluate_record(
+        _session_with_post(
+            FakeResponse(
+                _supported_payload(
+                    confidence_breakdown=_confidence_breakdown(),
+                )
+            )
+        ),
+        _supported_record(),
+        "http://localhost:8000",
+        5,
+        60.0,
+    )
+
+    assert result["answerability_score"] == 0.72
+    assert result["retrieval_margin"] == 0.4
+    assert result["numeric_consistency"] == 1.0
+    assert result["direct_support"] is True
+    assert result["decision_reasons"] == [
+        "Direct evidence support was found."
+    ]
 
 
 def test_successful_unsupported_fallback() -> None:
@@ -304,6 +364,29 @@ def test_json_csv_structure_and_dataset_hash(tmp_path: Path) -> None:
     assert json.loads(rows[0]["retrieved_pages"]) == [5]
 
 
+def test_csv_serializes_confidence_objects_and_lists_as_json(
+    tmp_path: Path,
+) -> None:
+    _, _, csv_path = run_evaluation(
+        _args(tmp_path, "--limit", "1"),
+        _session_with_post(
+            FakeResponse(
+                _supported_payload(
+                    confidence_breakdown=_confidence_breakdown(),
+                )
+            )
+        ),
+    )
+
+    with csv_path.open(encoding="utf-8", newline="") as csv_file:
+        row = next(csv.DictReader(csv_file))
+
+    assert json.loads(row["confidence_breakdown"])["direct_support"] is True
+    assert json.loads(row["decision_reasons"]) == [
+        "Direct evidence support was found."
+    ]
+
+
 def test_question_filtering_by_id(tmp_path: Path) -> None:
     payload, _, _ = run_evaluation(
         _args(tmp_path, "--question-id", "remote_work_001"),
@@ -343,6 +426,61 @@ def test_limit_and_question_id_are_incompatible() -> None:
         )
 
 
+@pytest.mark.parametrize("value", ["-0.1", "nan", "inf"])
+def test_request_delay_rejects_invalid_values(value: str) -> None:
+    parser = build_argument_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--request-delay-seconds", value])
+
+
+def test_request_delay_defaults_to_zero() -> None:
+    args = build_argument_parser().parse_args([])
+
+    assert args.request_delay_seconds == 0.0
+
+
+def test_request_delay_occurs_only_between_questions(tmp_path: Path) -> None:
+    session = Mock(spec=requests.Session)
+    session.post.side_effect = [
+        FakeResponse(_supported_payload()),
+        FakeResponse(_supported_payload()),
+    ]
+
+    with patch("eval.run_eval.time.sleep") as sleep:
+        payload, _, _ = run_evaluation(
+            _args(
+                tmp_path,
+                "--limit",
+                "2",
+                "--request-delay-seconds",
+                "2",
+            ),
+            session,
+        )
+
+    sleep.assert_called_once_with(2.0)
+    assert payload["run"]["request_delay_seconds"] == 2.0
+
+
+def test_request_delay_does_not_occur_after_final_question(
+    tmp_path: Path,
+) -> None:
+    with patch("eval.run_eval.time.sleep") as sleep:
+        run_evaluation(
+            _args(
+                tmp_path,
+                "--limit",
+                "1",
+                "--request-delay-seconds",
+                "2",
+            ),
+            _session_with_post(FakeResponse(_supported_payload())),
+        )
+
+    sleep.assert_not_called()
+
+
 def test_unique_sorted_pages_and_duplicate_detection() -> None:
     duplicate = _citation(page_number=5, chunk_index=2, excerpt="Same excerpt")
     metrics = extract_citation_metrics(
@@ -362,7 +500,14 @@ def test_unique_sorted_pages_and_duplicate_detection() -> None:
 def test_generated_files_do_not_contain_hidden_evidence(tmp_path: Path) -> None:
     citation = _citation()
     citation["evidence_text"] = "private complete evidence"
-    payload = _supported_payload(citations=[citation])
+    confidence_breakdown = _confidence_breakdown()
+    confidence_breakdown["decision_reasons"] = [
+        "evidence_text contained private complete evidence"
+    ]
+    payload = _supported_payload(
+        citations=[citation],
+        confidence_breakdown=confidence_breakdown,
+    )
 
     _, json_path, csv_path = run_evaluation(
         _args(tmp_path, "--limit", "1"),

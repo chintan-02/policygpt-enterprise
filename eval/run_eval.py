@@ -43,7 +43,7 @@ DEFAULT_OUTPUT_DIR = Path("eval/results")
 MAX_ERROR_MESSAGE_LENGTH = 500
 SENSITIVE_ERROR_PATTERN = re.compile(
     r"api[_-]?key|groq_api_key|openai_api_key|evidence[_ -]?text|"
-    r"system[_ -]?prompt|user[_ -]?prompt|provider[_ -]?payload",
+    r"system[_ -]?prompt|user[_ -]?prompt|provider[_ -]?payload|embedding",
     flags=re.IGNORECASE,
 )
 REQUIRED_RESPONSE_FIELDS = {
@@ -69,6 +69,18 @@ RESULT_FIELDS = [
     "readiness_correct",
     "evidence_status",
     "confidence_score",
+    "confidence_breakdown",
+    "answerability_score",
+    "top_retrieval_score",
+    "average_retrieval_score",
+    "retrieval_margin",
+    "lexical_coverage",
+    "top_chunk_lexical_coverage",
+    "numeric_consistency",
+    "numeric_mismatch",
+    "scope_risk",
+    "direct_support",
+    "decision_reasons",
     "expected_pages",
     "retrieved_pages",
     "page_hit",
@@ -93,6 +105,8 @@ RESULT_FIELDS = [
     "error_message",
 ]
 CSV_LIST_FIELDS = {
+    "confidence_breakdown",
+    "decision_reasons",
     "evaluation_focus",
     "expected_pages",
     "retrieved_pages",
@@ -136,6 +150,13 @@ def _positive_float(value: str) -> float:
     return parsed_value
 
 
+def _non_negative_float(value: str) -> float:
+    parsed_value = float(value)
+    if not math.isfinite(parsed_value) or parsed_value < 0:
+        raise argparse.ArgumentTypeError("value must be a finite non-negative number")
+    return parsed_value
+
+
 def _base_url(value: str) -> str:
     normalized = value.rstrip("/")
     parsed = urlparse(normalized)
@@ -167,6 +188,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--top-k", type=_positive_int, default=5)
     parser.add_argument("--timeout", type=_positive_float, default=60.0)
+    parser.add_argument(
+        "--request-delay-seconds",
+        type=_non_negative_float,
+        default=0.0,
+        help="Delay between evaluation questions; does not throttle production.",
+    )
 
     selection_group = parser.add_mutually_exclusive_group()
     selection_group.add_argument("--limit", type=_positive_int)
@@ -237,7 +264,11 @@ def check_backend_health(
 
     return {
         "latency_ms": latency_ms,
-        "response": payload,
+        "status": (
+            payload.get("status")
+            if isinstance(payload.get("status"), str)
+            else "unknown"
+        ),
     }
 
 
@@ -410,6 +441,95 @@ def extract_citation_metrics(citations: list[Any]) -> dict[str, Any]:
     }
 
 
+def extract_confidence_diagnostics(payload: dict[str, Any]) -> dict[str, Any]:
+    default_diagnostics = {
+        "confidence_breakdown": None,
+        "answerability_score": 0.0,
+        "top_retrieval_score": 0.0,
+        "average_retrieval_score": 0.0,
+        "retrieval_margin": 0.0,
+        "lexical_coverage": 0.0,
+        "top_chunk_lexical_coverage": 0.0,
+        "numeric_consistency": None,
+        "numeric_mismatch": False,
+        "scope_risk": False,
+        "direct_support": False,
+        "decision_reasons": [],
+    }
+    breakdown = payload.get("confidence_breakdown")
+    if not isinstance(breakdown, dict):
+        return default_diagnostics
+
+    numeric_fields = (
+        "answerability_score",
+        "top_retrieval_score",
+        "average_retrieval_score",
+        "retrieval_margin",
+        "lexical_coverage",
+        "top_chunk_lexical_coverage",
+    )
+    safe_breakdown: dict[str, Any] = {}
+    for field_name in numeric_fields:
+        value = breakdown.get(field_name)
+        safe_breakdown[field_name] = (
+            round(float(value), 4)
+            if isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(float(value))
+            else 0.0
+        )
+
+    numeric_consistency = breakdown.get("numeric_consistency")
+    safe_breakdown["numeric_consistency"] = (
+        round(float(numeric_consistency), 4)
+        if isinstance(numeric_consistency, (int, float))
+        and not isinstance(numeric_consistency, bool)
+        and math.isfinite(float(numeric_consistency))
+        else None
+    )
+    for field_name in ("numeric_mismatch", "scope_risk", "direct_support"):
+        safe_breakdown[field_name] = breakdown.get(field_name) is True
+
+    for field_name in (
+        "query_numeric_claims",
+        "evidence_numeric_claims",
+        "missing_numeric_claims",
+        "matched_query_terms",
+        "missing_query_terms",
+        "decision_reasons",
+    ):
+        value = breakdown.get(field_name)
+        safe_breakdown[field_name] = (
+            [
+                _sanitize_error_message(item)
+                for item in value
+                if isinstance(item, str)
+            ]
+            if isinstance(value, list)
+            else []
+        )
+
+    scope_risk_reason = breakdown.get("scope_risk_reason")
+    safe_breakdown["scope_risk_reason"] = (
+        _sanitize_error_message(scope_risk_reason)
+        if isinstance(scope_risk_reason, str)
+        else None
+    )
+
+    return {
+        "confidence_breakdown": safe_breakdown,
+        **{
+            field_name: safe_breakdown[field_name]
+            for field_name in numeric_fields
+        },
+        "numeric_consistency": safe_breakdown["numeric_consistency"],
+        "numeric_mismatch": safe_breakdown["numeric_mismatch"],
+        "scope_risk": safe_breakdown["scope_risk"],
+        "direct_support": safe_breakdown["direct_support"],
+        "decision_reasons": safe_breakdown["decision_reasons"],
+    }
+
+
 def _error_result(
     record: dict[str, Any],
     latency_ms: float,
@@ -430,6 +550,18 @@ def _error_result(
         "readiness_correct": False,
         "evidence_status": "error",
         "confidence_score": 0.0,
+        "confidence_breakdown": None,
+        "answerability_score": 0.0,
+        "top_retrieval_score": 0.0,
+        "average_retrieval_score": 0.0,
+        "retrieval_margin": 0.0,
+        "lexical_coverage": 0.0,
+        "top_chunk_lexical_coverage": 0.0,
+        "numeric_consistency": None,
+        "numeric_mismatch": False,
+        "scope_risk": False,
+        "direct_support": False,
+        "decision_reasons": [],
         "expected_pages": list(record["expected_pages"]),
         "retrieved_pages": [],
         "page_hit": False if should_answer else None,
@@ -481,6 +613,7 @@ def evaluate_record(
 
         payload = _validate_api_response(_response_json_object(response))
         citation_metrics = extract_citation_metrics(payload["citations"])
+        confidence_diagnostics = extract_confidence_diagnostics(payload)
     except requests.Timeout:
         latency_ms = (time.perf_counter() - started_at) * 1000
         return _error_result(
@@ -567,6 +700,7 @@ def evaluate_record(
         "readiness_correct": readiness_correct,
         "evidence_status": payload["evidence_status"],
         "confidence_score": round(float(payload["confidence_score"]), 4),
+        **confidence_diagnostics,
         "expected_pages": list(record["expected_pages"]),
         "retrieved_pages": citation_metrics["retrieved_pages"],
         "page_hit": page_hit,
@@ -680,7 +814,7 @@ def run_evaluation(
         )
 
         results: list[dict[str, Any]] = []
-        for record in selected_records:
+        for record_index, record in enumerate(selected_records):
             result = evaluate_record(
                 active_session,
                 record,
@@ -696,6 +830,12 @@ def run_evaluation(
                     f"Evaluation stopped after request error for {record['id']}: "
                     f"{result['error_message']}",
                 )
+
+            if (
+                args.request_delay_seconds > 0
+                and record_index < len(selected_records) - 1
+            ):
+                time.sleep(args.request_delay_seconds)
     finally:
         if created_session:
             active_session.close()
@@ -718,6 +858,7 @@ def run_evaluation(
             "dataset_sha256": _dataset_sha256(dataset_path),
             "top_k": args.top_k,
             "timeout_seconds": args.timeout,
+            "request_delay_seconds": args.request_delay_seconds,
             "question_count": len(selected_records),
             "backend_health": backend_health,
             "duplicate_citation_warning": duplicate_citation_warning,

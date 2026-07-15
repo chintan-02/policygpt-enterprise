@@ -2,8 +2,9 @@
 
 ## Purpose
 
-This directory contains the human-authored ground truth from Phase 2, Step 11
-and the repeatable evaluation runner added in Step 12. The benchmark checks
+This directory contains the human-authored ground truth from Phase 2, Step 11,
+the repeatable evaluation runner added in Step 12, and the explainable
+confidence diagnostics added in Step 13. The benchmark checks
 whether PolicyGPT retrieves the right policy pages, cites them, includes material
 answer facts, and declines questions that the source cannot support.
 
@@ -11,6 +12,36 @@ answer facts, and declines questions that the source cannot support.
 CLI, HTTP calls, response validation, orchestration, and result writing. The
 runner calls the existing PolicyGPT API; it does not import or duplicate the
 production retrieval or answer-generation pipeline.
+
+## Calibrated evidence confidence
+
+The production retrieval path assesses up to three highest-scoring, unique
+chunks at or above the configured candidate floor. The default floor is `0.30`;
+it only controls which evidence is assessed and is not an answer threshold.
+The calibrated answerability score is:
+
+```text
+0.35 * top retrieval score
++ 0.15 * average candidate retrieval score
++ 0.45 * combined lexical coverage
++ 0.05 * normalized retrieval margin
+```
+
+The retrieval margin is `(top - second) / 0.15`, bounded to `[0, 1]`. A single
+candidate receives a conservative margin of zero. Public values are rounded to
+four decimal places.
+
+Evidence is classified as `insufficient`, `weak`, `moderate`, or `strong`; only
+`moderate` and `strong` evidence can generate an answer. Exact top-chunk support
+may promote evidence to `moderate` when its retrieval score is at least `0.35`
+and lexical coverage is at least `0.60`. A missing numeric claim or unresolved
+external legal-authority request is always rejected, regardless of score.
+
+The API retains the top-level `confidence_score`. It reports the calibrated
+score for answer-ready results and zero for fallbacks. The optional
+`confidence_breakdown` contains safe component metrics, normalized terms,
+numeric claims, guardrail flags, and decision reasons; it never contains full
+evidence or prompts.
 
 ## Source document
 
@@ -155,6 +186,15 @@ Run only the first three records:
 python eval/run_eval.py --limit 3
 ```
 
+Pace evaluation requests when a provider has tight rate limits:
+
+```bash
+python eval/run_eval.py --request-delay-seconds 2
+```
+
+This delay applies only between benchmark questions and is not production
+request throttling.
+
 Other options configure the base URL, dataset, output directory, retrieval
 `top_k`, request timeout, health-check behavior, and whether the first request
 error should stop the run. `--limit` and `--question-id` are mutually exclusive.
@@ -176,7 +216,11 @@ error should stop the run. `--limit` and `--question-id` are mutually exclusive.
 - **Average latency:** Mean client-observed end-to-end request latency.
 - **Average citations:** Mean citation count across all evaluated cases.
 
-Confidence is recorded as observed data and is not a Step 12 pass/fail gate.
+Per-question JSON and CSV rows also record the optional confidence component
+scores, numeric and scope flags, direct-support result, and decision reasons.
+Object and list values in CSV are encoded as JSON strings.
+
+Confidence is recorded as observed data and is not a direct pass/fail gate.
 A supported case passes only when it is answer-ready, cites an expected page,
 and matches every expected keyword. An unsupported case passes only when it
 uses the zero-citation fallback correctly.
@@ -204,7 +248,7 @@ If repeated citation cards share the same filename, page, chunk index, and
 excerpt, the runner records their count and prints a duplicate-citation warning.
 This warning does not fail a case and never triggers an automatic ChromaDB reset.
 
-## Limitations and preparation for Step 12
+## Limitations
 
 - This small benchmark covers one fictional handbook and is not statistically
   representative of real HR or compliance corpora.
@@ -227,7 +271,7 @@ classification, and jurisdiction-specific overtime or severance calculations.
 Those subjects are mentioned only generally or deferred to local law, so assigning
 keywords or answer pages would create false precision.
 
-The current local ChromaDB collection appears to contain repeated copies of the
-sample PDF. Before Step 12 is run, reset the vector collection and index
-`examples/sample_hr_policy.pdf` exactly once so duplicate vectors do not distort
-retrieval or scoring metrics. Step 11 does not alter or delete ChromaDB data.
+For comparable local runs, use a clean vector collection with
+`examples/sample_hr_policy.pdf` indexed exactly once. Duplicate vectors can
+distort retrieval and confidence component metrics; the evaluator reports
+duplicate citation cards but never modifies ChromaDB data.
