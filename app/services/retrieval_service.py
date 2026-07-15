@@ -35,6 +35,12 @@ class RetrievalService:
             top_k=evidence_request.top_k,
         )
 
+        raw_scores = [result.score for result in raw_results]
+        top_retrieval_score = max(raw_scores, default=0.0)
+        average_retrieval_score = (
+            sum(raw_scores) / len(raw_scores) if raw_scores else 0.0
+        )
+
         citation_cards = self._build_citation_cards(raw_results)
 
         evidence_status = self._get_evidence_status(citation_cards)
@@ -55,6 +61,8 @@ class RetrievalService:
             answer_ready=answer_ready,
             evidence_status=evidence_status,
             confidence_score=confidence_score,
+            top_retrieval_score=round(top_retrieval_score, 4),
+            average_retrieval_score=round(average_retrieval_score, 4),
             min_retrieval_score=self.settings.min_retrieval_score,
             citation_count=len(citation_cards),
             citations=citation_cards,

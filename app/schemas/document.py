@@ -98,6 +98,8 @@ class DocumentEvidenceResponse(BaseModel):
     answer_ready: bool
     evidence_status: str
     confidence_score: float
+    top_retrieval_score: float
+    average_retrieval_score: float
     min_retrieval_score: float
 
     citation_count: int

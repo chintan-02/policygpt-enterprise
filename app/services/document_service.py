@@ -1,7 +1,10 @@
+import time
+from datetime import datetime, timezone
 from pathlib import PurePath
 from uuid import uuid4
 
 from fastapi import UploadFile
+import structlog
 
 from app.core.config import get_settings
 from app.core.exceptions import BadRequestException
@@ -15,13 +18,17 @@ from app.schemas.document import (
     DocumentSearchResponse,
     ExtractedPageText,
 )
+from app.schemas.observability import RAGQueryLogEntry
 from app.services.answer_generation_service import AnswerGenerationService
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
 from app.services.pdf_extraction_service import PDFExtractionService
+from app.services.rag_logging_service import RAGLoggingService
 from app.services.retrieval_service import RetrievalService
 from app.services.text_cleaning_service import TextCleaningService
 from app.services.vector_store_service import VectorStoreService
+
+logger = structlog.get_logger(__name__)
 
 
 class DocumentService:
@@ -36,6 +43,7 @@ class DocumentService:
     }
 
     def __init__(self) -> None:
+        self.settings = get_settings()
         self.pdf_extraction_service = PDFExtractionService()
         self.text_cleaning_service = TextCleaningService()
         self.chunking_service = ChunkingService()
@@ -43,6 +51,7 @@ class DocumentService:
         self.vector_store_service = VectorStoreService()
         self.retrieval_service = RetrievalService()
         self.answer_generation_service = AnswerGenerationService()
+        self.rag_logging_service = RAGLoggingService()
 
     async def process_pdf_upload(self, file: UploadFile) -> DocumentIngestionResponse:
         settings = get_settings()
@@ -168,51 +177,171 @@ class DocumentService:
         self,
         answer_request: DocumentAnswerRequest,
     ) -> DocumentAnswerResponse:
-        evidence_response = self.retrieve_evidence(
-            DocumentEvidenceRequest(
-                query=answer_request.question,
-                top_k=answer_request.top_k,
-            )
-        )
+        query_id = str(uuid4())
+        started_at = time.perf_counter()
+        evidence_response: DocumentEvidenceResponse | None = None
+        response: DocumentAnswerResponse | None = None
+        llm_provider = "none"
+        model_name: str | None = None
+        fallback_used = True
 
-        if not evidence_response.answer_ready:
-            fallback_answer = evidence_response.fallback_message or (
-                "I could not find enough supporting evidence in the uploaded "
-                "documents to answer this reliably."
+        try:
+            evidence_response = self.retrieve_evidence(
+                DocumentEvidenceRequest(
+                    query=answer_request.question,
+                    top_k=answer_request.top_k,
+                )
             )
 
-            return DocumentAnswerResponse(
-                question=answer_request.question,
-                answer=fallback_answer,
-                answer_ready=False,
-                evidence_status=evidence_response.evidence_status,
-                confidence_score=evidence_response.confidence_score,
-                citation_count=evidence_response.citation_count,
-                citations=evidence_response.citations,
-                llm_provider="none",
-                model_name=None,
+            if not evidence_response.answer_ready:
+                fallback_answer = evidence_response.fallback_message or (
+                    "I could not find enough supporting evidence in the uploaded "
+                    "documents to answer this reliably."
+                )
+
+                response = DocumentAnswerResponse(
+                    question=answer_request.question,
+                    answer=fallback_answer,
+                    answer_ready=False,
+                    evidence_status=evidence_response.evidence_status,
+                    confidence_score=evidence_response.confidence_score,
+                    citation_count=evidence_response.citation_count,
+                    citations=evidence_response.citations,
+                    llm_provider=llm_provider,
+                    model_name=model_name,
+                    fallback_used=fallback_used,
+                )
+            else:
+                if self.settings.enable_llm_answer:
+                    llm_provider = self.settings.llm_provider
+
+                    if llm_provider == "groq":
+                        model_name = self.settings.groq_model_name
+                    elif llm_provider == "openai":
+                        model_name = self.settings.openai_model_name
+
+                answer, model_name, llm_provider, fallback_used = (
+                    self.answer_generation_service.generate_answer(
+                        question=answer_request.question,
+                        citations=evidence_response.citations,
+                    )
+                )
+
+                response = DocumentAnswerResponse(
+                    question=answer_request.question,
+                    answer=answer,
+                    answer_ready=True,
+                    evidence_status=evidence_response.evidence_status,
+                    confidence_score=evidence_response.confidence_score,
+                    citation_count=evidence_response.citation_count,
+                    citations=evidence_response.citations,
+                    llm_provider=llm_provider,
+                    model_name=model_name,
+                    fallback_used=fallback_used,
+                )
+
+            self._log_rag_query(
+                query_id=query_id,
+                started_at=started_at,
+                answer_request=answer_request,
+                evidence_response=evidence_response,
+                response=response,
+                llm_provider=llm_provider,
+                model_name=model_name,
+                fallback_used=fallback_used,
+            )
+            return response
+        except Exception as exc:
+            self._log_rag_query(
+                query_id=query_id,
+                started_at=started_at,
+                answer_request=answer_request,
+                evidence_response=evidence_response,
+                response=None,
+                llm_provider=llm_provider,
+                model_name=model_name,
                 fallback_used=True,
+                error=exc,
+            )
+            raise
+
+    def _log_rag_query(
+        self,
+        *,
+        query_id: str,
+        started_at: float,
+        answer_request: DocumentAnswerRequest,
+        evidence_response: DocumentEvidenceResponse | None,
+        response: DocumentAnswerResponse | None,
+        llm_provider: str,
+        model_name: str | None,
+        fallback_used: bool,
+        error: Exception | None = None,
+    ) -> None:
+        try:
+            citations = evidence_response.citations if evidence_response else []
+            retrieved_pages = sorted({citation.page_number for citation in citations})
+            retrieved_filenames = sorted(
+                {citation.filename for citation in citations if citation.filename}
+            )
+            latency_ms = round(
+                max(0.0, (time.perf_counter() - started_at) * 1000),
+                2,
             )
 
-        answer, model_name, provider_name, fallback_used = (
-            self.answer_generation_service.generate_answer(
-                question=answer_request.question,
-                citations=evidence_response.citations,
+            entry = RAGQueryLogEntry(
+                query_id=query_id,
+                timestamp=datetime.now(timezone.utc),
+                question=(
+                    answer_request.question
+                    if self.settings.rag_log_include_question
+                    else None
+                ),
+                question_length=len(answer_request.question),
+                answer_ready=response.answer_ready if response else False,
+                evidence_status=(
+                    evidence_response.evidence_status
+                    if evidence_response
+                    else "error"
+                ),
+                confidence_score=(
+                    evidence_response.confidence_score if evidence_response else 0.0
+                ),
+                top_retrieval_score=(
+                    evidence_response.top_retrieval_score
+                    if evidence_response
+                    else 0.0
+                ),
+                average_retrieval_score=(
+                    evidence_response.average_retrieval_score
+                    if evidence_response
+                    else 0.0
+                ),
+                citation_count=(
+                    evidence_response.citation_count if evidence_response else 0
+                ),
+                retrieved_pages=retrieved_pages,
+                retrieved_filenames=retrieved_filenames,
+                llm_provider=llm_provider,
+                model_name=model_name,
+                fallback_used=fallback_used,
+                latency_ms=latency_ms,
+                top_k=answer_request.top_k,
+                min_retrieval_score=(
+                    evidence_response.min_retrieval_score
+                    if evidence_response
+                    else self.settings.min_retrieval_score
+                ),
+                error_type=type(error).__name__ if error else None,
+                error_message=str(error) if error else None,
             )
-        )
-
-        return DocumentAnswerResponse(
-            question=answer_request.question,
-            answer=answer,
-            answer_ready=True,
-            evidence_status=evidence_response.evidence_status,
-            confidence_score=evidence_response.confidence_score,
-            citation_count=evidence_response.citation_count,
-            citations=evidence_response.citations,
-            llm_provider=provider_name,
-            model_name=model_name,
-            fallback_used=fallback_used,
-        )
+            self.rag_logging_service.log_query(entry)
+        except Exception as exc:
+            logger.warning(
+                "rag_query_log_entry_failed",
+                query_id=query_id,
+                error_type=type(exc).__name__,
+            )
 
     def _clean_extracted_pages(
         self,

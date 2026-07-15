@@ -21,6 +21,19 @@ class Settings(BaseSettings):
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
+    enable_rag_query_logging: bool = Field(
+        default=True,
+        alias="ENABLE_RAG_QUERY_LOGGING",
+    )
+    rag_query_log_path: str = Field(
+        default="logs/rag_queries.jsonl",
+        alias="RAG_QUERY_LOG_PATH",
+    )
+    rag_log_include_question: bool = Field(
+        default=True,
+        alias="RAG_LOG_INCLUDE_QUESTION",
+    )
+
     backend_host: str = Field(default="0.0.0.0", alias="BACKEND_HOST")
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
 
@@ -96,6 +109,7 @@ class Settings(BaseSettings):
         "app_version",
         "api_prefix",
         "log_level",
+        "rag_query_log_path",
         "backend_host",
         "cors_allowed_origins",
         "embedding_model_name",
