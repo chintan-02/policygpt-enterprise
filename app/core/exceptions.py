@@ -47,3 +47,9 @@ class ConfigurationException(AppException):
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     error_code = "CONFIGURATION_ERROR"
     message = "The application is not configured correctly."
+
+
+class DatabaseUnavailableException(AppException):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    error_code = "DATABASE_UNAVAILABLE"
+    message = "Document metadata is temporarily unavailable."

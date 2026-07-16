@@ -5,9 +5,16 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 import structlog
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.exceptions import BadRequestException
+from app.core.exceptions import (
+    AppException,
+    BadRequestException,
+    DatabaseUnavailableException,
+    ServiceException,
+)
+from app.db.models.document import Document, DocumentProcessingStage
 from app.schemas.document import (
     DocumentAnswerRequest,
     DocumentAnswerResponse,
@@ -22,6 +29,11 @@ from app.schemas.observability import RAGQueryLogEntry
 from app.services.answer_generation_service import AnswerGenerationService
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
+from app.services.document_metadata_service import DocumentMetadataService
+from app.services.document_storage_service import (
+    DocumentStorageService,
+    TemporaryDocumentFile,
+)
 from app.services.pdf_extraction_service import PDFExtractionService
 from app.services.rag_logging_service import RAGLoggingService
 from app.services.retrieval_service import RetrievalService
@@ -52,16 +64,21 @@ class DocumentService:
         self.retrieval_service = RetrievalService()
         self.answer_generation_service = AnswerGenerationService()
         self.rag_logging_service = RAGLoggingService()
+        self.document_storage_service = DocumentStorageService()
 
-    async def process_pdf_upload(self, file: UploadFile) -> DocumentIngestionResponse:
+    async def process_pdf_upload(
+        self,
+        file: UploadFile,
+        session: Session,
+    ) -> DocumentIngestionResponse:
         settings = get_settings()
 
-        filename = file.filename or ""
+        original_filename = file.filename or ""
 
-        if not filename.strip():
+        if not original_filename.strip():
             raise BadRequestException("Uploaded file must have a filename.")
 
-        file_extension = PurePath(filename).suffix.lower()
+        file_extension = PurePath(original_filename).suffix.lower()
 
         if file_extension not in self.allowed_extensions:
             raise BadRequestException("Only PDF files are supported.")
@@ -73,81 +90,179 @@ class DocumentService:
                 f"Invalid file content type: {content_type}. Only PDF files are supported."
             )
 
-        pdf_bytes = await file.read()
-        await file.seek(0)
+        filename = PurePath(original_filename).name
+        metadata = DocumentMetadataService(session)
+        temporary: TemporaryDocumentFile | None = None
+        document: Document | None = None
+        document_id: str | None = None
+        failure_code = "storage_failed"
+        indexing_started = False
 
-        size_bytes = len(pdf_bytes)
-
-        if size_bytes == 0:
-            raise BadRequestException("Uploaded PDF file is empty.")
-
-        if size_bytes > settings.max_pdf_upload_size_bytes:
-            raise BadRequestException(
-                f"PDF file is too large. Maximum allowed size is "
-                f"{settings.max_pdf_upload_size_mb} MB."
+        try:
+            temporary = await self.document_storage_service.write_temporary(
+                file,
+                max_size_bytes=settings.max_pdf_upload_size_bytes,
             )
 
-        document_id = str(uuid4())
+            duplicate = metadata.get_by_sha256(temporary.sha256)
+            if duplicate is not None:
+                self.document_storage_service.cleanup_temporary(temporary)
+                logger.info(
+                    "document_duplicate_detected",
+                    document_id=duplicate.id,
+                    filename=duplicate.filename,
+                    sha256_prefix=duplicate.sha256[:12],
+                    status=duplicate.status,
+                    processing_stage=duplicate.processing_stage,
+                )
+                return self._build_duplicate_upload_response(duplicate)
 
-        extraction_result = self.pdf_extraction_service.extract_text_from_pdf(pdf_bytes)
+            document_id = str(uuid4())
+            storage_key = self.document_storage_service.build_storage_key(document_id)
+            failure_code = "metadata_update_failed"
+            document = metadata.create(
+                document_id=document_id,
+                filename=filename,
+                original_filename=original_filename,
+                content_type=content_type,
+                file_size_bytes=temporary.size_bytes,
+                sha256=temporary.sha256,
+                storage_key=storage_key,
+            )
 
-        cleaned_pages, page_section_titles = self._clean_extracted_pages(
-            pages=extraction_result.pages,
-        )
+            failure_code = "storage_failed"
+            self.document_storage_service.finalize(temporary, storage_key)
+            temporary = None
+            metadata.update_stage(document, DocumentProcessingStage.STORED)
+            logger.info(
+                "document_storage_completed",
+                document_id=document.id,
+                filename=document.filename,
+                sha256_prefix=document.sha256[:12],
+            )
 
-        total_characters = sum(page.char_count for page in cleaned_pages)
-        is_text_extractable = total_characters > 0
+            failure_code = "extraction_failed"
+            metadata.update_stage(document, DocumentProcessingStage.EXTRACTING)
+            pdf_bytes = self.document_storage_service.read_bytes(storage_key)
+            extraction_result = self.pdf_extraction_service.extract_text_from_pdf(pdf_bytes)
 
-        chunks = self.chunking_service.create_chunks(
-            document_id=document_id,
-            filename=filename,
-            pages=cleaned_pages,
-            page_section_titles=page_section_titles,
-            chunk_size_chars=settings.text_chunk_size_chars,
-            chunk_overlap_chars=settings.text_chunk_overlap_chars,
-        )
+            failure_code = "cleaning_failed"
+            metadata.update_stage(document, DocumentProcessingStage.CLEANING)
+            cleaned_pages, page_section_titles = self._clean_extracted_pages(
+                pages=extraction_result.pages,
+            )
+            total_characters = sum(page.char_count for page in cleaned_pages)
+            is_text_extractable = total_characters > 0
 
-        chunk_texts = [chunk.text for chunk in chunks]
-        embeddings = self.embedding_service.embed_texts(chunk_texts)
+            failure_code = "chunking_failed"
+            metadata.update_stage(document, DocumentProcessingStage.CHUNKING)
+            chunks = self.chunking_service.create_chunks(
+                document_id=document.id,
+                filename=filename,
+                pages=cleaned_pages,
+                page_section_titles=page_section_titles,
+                chunk_size_chars=settings.text_chunk_size_chars,
+                chunk_overlap_chars=settings.text_chunk_overlap_chars,
+            )
 
-        stored_chunk_count = self.vector_store_service.add_chunks(
-            chunks=chunks,
-            embeddings=embeddings,
-        )
+            failure_code = "embedding_failed"
+            metadata.update_stage(document, DocumentProcessingStage.EMBEDDING)
+            embeddings = self.embedding_service.embed_texts([chunk.text for chunk in chunks])
 
-        preview_text = self._build_preview_text(
-            pages_text=[page.text for page in cleaned_pages],
-            max_characters=1000,
-        )
+            failure_code = "indexing_failed"
+            metadata.update_stage(document, DocumentProcessingStage.INDEXING)
+            indexing_started = True
+            stored_chunk_count = self.vector_store_service.add_chunks(
+                chunks=chunks,
+                embeddings=embeddings,
+            )
+            if stored_chunk_count != len(chunks):
+                raise ServiceException("Document indexing did not store every chunk.")
 
-        if is_text_extractable and stored_chunk_count > 0:
+            failure_code = "metadata_update_failed"
+            if not self.document_storage_service.exists(storage_key):
+                raise ServiceException("Stored document source is unavailable.")
+            document = metadata.mark_ready(
+                document,
+                page_count=extraction_result.page_count,
+                character_count=total_characters,
+                chunk_count=stored_chunk_count,
+                chroma_collection=settings.chroma_collection_name,
+                embedding_model=settings.embedding_model_name,
+            )
+
+            logger.info(
+                "document_indexing_completed",
+                document_id=document.id,
+                filename=document.filename,
+                status=document.status,
+                processing_stage=document.processing_stage,
+                page_count=document.page_count,
+                chunk_count=document.chunk_count,
+            )
+
+            preview_text = self._build_preview_text(
+                pages_text=[page.text for page in cleaned_pages],
+                max_characters=1000,
+            )
             message = (
-                "PDF uploaded, text extracted, chunks embedded, "
-                "and stored in ChromaDB successfully."
+                "PDF uploaded, text extracted, chunks embedded, and stored in ChromaDB successfully."
+                if is_text_extractable and stored_chunk_count > 0
+                else "PDF uploaded successfully, but no selectable text was found."
             )
-        elif is_text_extractable:
-            message = "PDF text was extracted, but no chunks were stored."
-        else:
-            message = (
-                "PDF uploaded successfully, but no selectable text was found. "
-                "This may be a scanned or image-only PDF."
+            return DocumentIngestionResponse(
+                document_id=document.id,
+                filename=document.filename,
+                content_type=document.content_type,
+                size_bytes=document.file_size_bytes,
+                page_count=document.page_count or 0,
+                total_characters=document.character_count or 0,
+                is_text_extractable=is_text_extractable,
+                chunk_count=document.chunk_count or 0,
+                stored_chunk_count=document.chunk_count or 0,
+                collection_name=settings.chroma_collection_name,
+                preview_text=preview_text,
+                sample_chunks=chunks[:3],
+                message=message,
+                status=document.status,
+                processing_stage=document.processing_stage,
+                character_count=document.character_count,
+                duplicate=False,
+                created_at=document.created_at,
+                indexed_at=document.indexed_at,
             )
-
-        return DocumentIngestionResponse(
-            document_id=document_id,
-            filename=filename,
-            content_type=content_type,
-            size_bytes=size_bytes,
-            page_count=extraction_result.page_count,
-            total_characters=total_characters,
-            is_text_extractable=is_text_extractable,
-            chunk_count=len(chunks),
-            stored_chunk_count=stored_chunk_count,
-            collection_name=settings.chroma_collection_name,
-            preview_text=preview_text,
-            sample_chunks=chunks[:3],
-            message=message,
-        )
+        except Exception as exc:
+            self.document_storage_service.cleanup_temporary(temporary)
+            if indexing_started and document is not None:
+                try:
+                    self.vector_store_service.delete_document_chunks(document.id)
+                except Exception:
+                    logger.exception(
+                        "document_vector_cleanup_failed",
+                        document_id=document_id,
+                    )
+            if document is not None:
+                try:
+                    metadata.mark_failed(
+                        document,
+                        error_code=failure_code,
+                        error_message=self._safe_ingestion_error_message(failure_code),
+                    )
+                except DatabaseUnavailableException:
+                    logger.exception(
+                        "document_failure_metadata_unavailable",
+                        document_id=document_id,
+                        error_code=failure_code,
+                    )
+            logger.exception(
+                "document_ingestion_failed",
+                document_id=document_id,
+                filename=filename,
+                error_code=failure_code,
+            )
+            if isinstance(exc, AppException):
+                raise
+            raise ServiceException(self._safe_ingestion_error_message(failure_code)) from exc
 
     def search_documents(
         self,
@@ -432,3 +547,42 @@ class DocumentService:
             return combined_text
 
         return combined_text[:max_characters].strip() + "..."
+
+    def _build_duplicate_upload_response(self, document: Document) -> DocumentIngestionResponse:
+        page_count = document.page_count or 0
+        character_count = document.character_count or 0
+        chunk_count = document.chunk_count or 0
+        return DocumentIngestionResponse(
+            document_id=document.id,
+            filename=document.filename,
+            content_type=document.content_type,
+            size_bytes=document.file_size_bytes,
+            page_count=page_count,
+            total_characters=character_count,
+            is_text_extractable=character_count > 0,
+            chunk_count=chunk_count,
+            stored_chunk_count=chunk_count,
+            collection_name=document.chroma_collection or self.settings.chroma_collection_name,
+            preview_text="",
+            sample_chunks=[],
+            message="This PDF already exists; the existing document metadata was returned.",
+            status=document.status,
+            processing_stage=document.processing_stage,
+            character_count=document.character_count,
+            duplicate=True,
+            created_at=document.created_at,
+            indexed_at=document.indexed_at,
+        )
+
+    @staticmethod
+    def _safe_ingestion_error_message(error_code: str) -> str:
+        messages = {
+            "storage_failed": "The PDF source could not be stored safely.",
+            "extraction_failed": "Text could not be extracted from the PDF.",
+            "cleaning_failed": "Extracted PDF text could not be prepared.",
+            "chunking_failed": "The PDF could not be divided into indexable sections.",
+            "embedding_failed": "Document sections could not be embedded.",
+            "indexing_failed": "Document sections could not be indexed.",
+            "metadata_update_failed": "Document metadata could not be updated.",
+        }
+        return messages.get(error_code, "Document ingestion could not be completed.")

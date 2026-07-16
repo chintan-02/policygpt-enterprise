@@ -1,4 +1,25 @@
+from datetime import datetime
+from enum import StrEnum
+
 from pydantic import BaseModel, Field
+
+
+class DocumentStatus(StrEnum):
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+
+
+class DocumentProcessingStage(StrEnum):
+    RECEIVED = "received"
+    STORED = "stored"
+    EXTRACTING = "extracting"
+    CLEANING = "cleaning"
+    CHUNKING = "chunking"
+    EMBEDDING = "embedding"
+    INDEXING = "indexing"
+    COMPLETE = "complete"
+    FAILED = "failed"
 
 
 class ExtractedPageText(BaseModel):
@@ -42,6 +63,55 @@ class DocumentIngestionResponse(BaseModel):
     sample_chunks: list[DocumentChunk]
 
     message: str
+
+    status: DocumentStatus = DocumentStatus.READY
+    processing_stage: DocumentProcessingStage = DocumentProcessingStage.COMPLETE
+    character_count: int | None = Field(default=None, ge=0)
+    duplicate: bool = False
+    created_at: datetime | None = None
+    indexed_at: datetime | None = None
+
+
+DocumentUploadResponse = DocumentIngestionResponse
+
+
+class DocumentSummaryResponse(BaseModel):
+    document_id: str
+    filename: str
+    content_type: str
+    size_bytes: int = Field(..., ge=0)
+    status: DocumentStatus
+    processing_stage: DocumentProcessingStage
+    page_count: int | None = Field(default=None, ge=0)
+    character_count: int | None = Field(default=None, ge=0)
+    chunk_count: int | None = Field(default=None, ge=0)
+    created_at: datetime
+    updated_at: datetime
+    indexed_at: datetime | None = None
+
+
+class DocumentDetailResponse(DocumentSummaryResponse):
+    chroma_collection: str | None = None
+    embedding_model: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+class DocumentStatusResponse(BaseModel):
+    document_id: str
+    status: DocumentStatus
+    processing_stage: DocumentProcessingStage
+    page_count: int | None = Field(default=None, ge=0)
+    chunk_count: int | None = Field(default=None, ge=0)
+    error_code: str | None = None
+    updated_at: datetime
+
+
+class DocumentListResponse(BaseModel):
+    items: list[DocumentSummaryResponse]
+    total: int = Field(..., ge=0)
+    limit: int = Field(..., ge=1, le=100)
+    offset: int = Field(..., ge=0)
 
 
 class DocumentSearchRequest(BaseModel):

@@ -53,7 +53,7 @@ npm run dev
 | Route | Phase 14C state |
 | --- | --- |
 | `/` | Overview with live backend health |
-| `/documents` | Honest persistence placeholder |
+| `/documents` | Step 15A frontend placeholder; no document-management UI yet |
 | `/ask` | Live citation-backed Ask workspace |
 | `/evaluations/overview` | Real-data quality outcomes and production gates |
 | `/evaluations/cases` | Filterable TanStack case table and URL-selected detail drawer |
@@ -107,7 +107,7 @@ The Streamlit evaluation dashboard remains the internal QA console. Persistent P
 3. FastAPI retrieves and calibrates evidence, then returns a structured supported, unsupported, or provider-fallback response.
 4. A supported answer is presented only when at least one citation is present. Retrieval scores remain raw decimals; only the calibrated confidence score is displayed as a percentage.
 
-Ask searches all documents currently indexed in the evidence store. There is no document selector or persistent document library in this phase.
+Ask searches all documents currently indexed in the evidence store. Step 15 adds backend document metadata but does not add a document selector or document-management UI.
 
 Supported responses show the grounded answer, a source/page summary, calibrated evidence confidence, decision reasons, the real citation metadata in the Provenance Rail, and a review disclaimer. Unsupported responses do not show speculative answer text. If evidence is answer-ready while the configured answer provider is unavailable, the workspace shows an amber citation-only fallback and preserves the available evidence.
 
@@ -126,7 +126,7 @@ The unsupported question must not produce external legal advice. Ask is synchron
 
 The backend already supports PDF extraction and indexing, ChromaDB retrieval, grounded generation, page-level citations, calibrated confidence, safety guardrails, observability, evaluation, provider retries, and safe citation-only fallback.
 
-Phase 14C does not add uploads, document persistence, persistent evaluation history, streaming, PostgreSQL, authentication, roles, multi-tenancy, dark mode, or agent behavior. There is intentionally no authentication in this phase; no production authorization claim is implied.
+Step 15 adds PostgreSQL-backed document metadata, durable local source storage, and read-only list/detail/status contracts. The Documents UI, delete/reindex controls, persistent evaluation history, streaming, Docker Compose, authentication, roles, multi-tenancy, dark mode, and agent behavior remain pending. There is intentionally no authentication in this phase; no production authorization claim is implied.
 
 ## Verification
 

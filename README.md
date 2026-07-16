@@ -10,7 +10,7 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 
 ## Project Status
 
-**Current phase:** Phase 14C — Next.js evaluation product
+**Current phase:** Step 15 — PostgreSQL document metadata
 
 ### Completed
 
@@ -39,10 +39,13 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 * Read-only Streamlit RAG Evaluation Dashboard
 * Read-only Next.js evaluation product with overview, cases, confidence,
   provider reliability, and latest-run downloads
+* Durable PostgreSQL document metadata with Alembic migrations
+* Atomic local source-PDF storage and SHA-256 duplicate prevention
+* Read-only document list, detail, and lifecycle-status APIs
 
 ### Planned Later
 
-* PostgreSQL metadata and persistent evaluation history
+* Step 15A Documents frontend and persistent evaluation history
 * Docker Compose
 * Multi-document comparison
 * Compliance report generation
@@ -446,6 +449,8 @@ The Streamlit UI is organized into pages and reusable components.
 ### Storage
 
 * Local ChromaDB persistent directory
+* PostgreSQL for durable document metadata
+* Local `data/uploads` source-PDF storage
 * Local `.env` configuration
 * Demo PDF in `examples/`
 
@@ -565,6 +570,13 @@ EMBEDDING_BATCH_SIZE=32
 
 CHROMA_PERSIST_DIRECTORY=data/chroma
 CHROMA_COLLECTION_NAME=policygpt_documents
+
+DATABASE_URL=postgresql+psycopg://policygpt:change_me@localhost:5432/policygpt
+DATABASE_POOL_SIZE=5
+DATABASE_MAX_OVERFLOW=5
+DATABASE_POOL_TIMEOUT_SECONDS=30
+DATABASE_ECHO=false
+DOCUMENT_STORAGE_DIR=data/uploads
 
 SEARCH_TOP_K_DEFAULT=5
 
@@ -759,6 +771,9 @@ This demonstrates that PolicyGPT does not invent unsupported policy details.
 | ------ | ---------------------------- | ------------------------------- |
 | `GET`  | `/api/v1/health`             | Check backend health            |
 | `POST` | `/api/v1/documents/upload`   | Upload and index PDF            |
+| `GET`  | `/api/v1/documents`          | List persistent document metadata |
+| `GET`  | `/api/v1/documents/{id}`     | Read safe document metadata       |
+| `GET`  | `/api/v1/documents/{id}/status` | Poll document lifecycle status |
 | `POST` | `/api/v1/documents/search`   | Raw semantic search             |
 | `POST` | `/api/v1/documents/evidence` | Retrieve citation evidence      |
 | `POST` | `/api/v1/documents/ask`      | Generate citation-backed answer |
@@ -785,7 +800,7 @@ Current limitations:
 
 * no user authentication
 * no role-based access control
-* no PostgreSQL metadata database yet
+* no Documents frontend yet (Step 15A)
 * no document deletion endpoint yet
 * no multi-document comparison yet
 * no OCR for scanned PDFs yet

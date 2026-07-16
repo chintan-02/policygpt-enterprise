@@ -108,6 +108,15 @@ class VectorStoreService:
         except Exception as exc:
             raise ServiceException("Failed to count ChromaDB chunks.") from exc
 
+    def delete_document_chunks(self, document_id: str) -> None:
+        """Compensate a partial ingestion without affecting other documents."""
+        try:
+            self.collection.delete(where={"document_id": document_id})
+        except Exception as exc:
+            raise ServiceException(
+                "Failed to clean up partially indexed document chunks."
+            ) from exc
+
     def _build_chunk_id(self, chunk: DocumentChunk) -> str:
         return (
             f"{chunk.document_id}"

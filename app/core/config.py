@@ -1,6 +1,7 @@
 import json
 from functools import lru_cache
 from typing import Literal, Self
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,7 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = Field(default="PolicyGPT Enterprise", alias="APP_NAME")
 
-    app_env: Literal["development", "staging", "production"] = Field(
+    app_env: Literal["development", "staging", "production", "test"] = Field(
         default="development",
         alias="APP_ENV",
     )
@@ -64,6 +65,24 @@ class Settings(BaseSettings):
     chroma_collection_name: str = Field(
         default="policygpt_documents",
         alias="CHROMA_COLLECTION_NAME",
+    )
+
+    database_url: str | None = Field(default=None, alias="DATABASE_URL")
+    database_pool_size: int = Field(default=5, ge=1, alias="DATABASE_POOL_SIZE")
+    database_max_overflow: int = Field(
+        default=5,
+        ge=0,
+        alias="DATABASE_MAX_OVERFLOW",
+    )
+    database_pool_timeout_seconds: int = Field(
+        default=30,
+        ge=1,
+        alias="DATABASE_POOL_TIMEOUT_SECONDS",
+    )
+    database_echo: bool = Field(default=False, alias="DATABASE_ECHO")
+    document_storage_dir: str = Field(
+        default="data/uploads",
+        alias="DOCUMENT_STORAGE_DIR",
     )
 
     search_top_k_default: int = Field(default=5, alias="SEARCH_TOP_K_DEFAULT")
@@ -177,6 +196,8 @@ class Settings(BaseSettings):
         "embedding_model_name",
         "chroma_persist_directory",
         "chroma_collection_name",
+        "database_url",
+        "document_storage_dir",
         "llm_provider",
         "groq_api_key",
         "groq_base_url",
@@ -207,6 +228,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_ordered_settings(self) -> Self:
+        if self.app_env != "test" and not self.database_url:
+            raise ValueError("DATABASE_URL is required outside tests.")
+
         if (
             self.rag_candidate_retrieval_floor
             > self.rag_direct_support_score_floor
@@ -235,6 +259,19 @@ class Settings(BaseSettings):
             )
 
         return self
+
+    @property
+    def safe_database_config(self) -> dict[str, str | int | bool | None]:
+        """Return connection diagnostics without credentials or the full URL."""
+        parsed = urlsplit(self.database_url or "")
+        return {
+            "driver": parsed.scheme or None,
+            "host": parsed.hostname or None,
+            "pool_size": self.database_pool_size,
+            "max_overflow": self.database_max_overflow,
+            "pool_timeout_seconds": self.database_pool_timeout_seconds,
+            "echo": self.database_echo,
+        }
 
     @property
     def cors_origins_list(self) -> list[str]:

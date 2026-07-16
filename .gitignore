@@ -34,6 +34,8 @@ dist/
 # Future local storage
 uploads/
 data/
+data/uploads/**
+!data/uploads/.gitkeep
 chroma/
 sample.pdf
 sample.pdf
