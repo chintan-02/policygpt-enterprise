@@ -5,10 +5,9 @@ import { pageBreadcrumbs } from "@/lib/navigation";
 
 export function CurrentPageContext() {
   const pathname = usePathname();
-  const breadcrumb = pageBreadcrumbs[pathname] ?? {
-    section: "PolicyGPT",
-    page: "Evidence Intelligence Console",
-  };
+  const breadcrumb = pageBreadcrumbs[pathname] ?? (pathname.startsWith("/documents/")
+    ? { section: "Workspace", page: "Document details" }
+    : { section: "PolicyGPT", page: "Evidence Intelligence Console" });
 
   return (
     <nav aria-label="Breadcrumb" className="min-w-0">

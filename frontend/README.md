@@ -13,9 +13,9 @@ PolicyGPT Enterprise — Evidence Intelligence Console is the product interface 
 - Lucide icons
 - Geist Sans for interface copy and Geist Mono for traceability metadata
 
-## Phase 14C scope
+## Step 15A scope
 
-Phase 14C adds a production-facing, read-only evaluation product while preserving the Phase 14B Ask workflow. Evaluation pages read the latest generated artifact through FastAPI and server-only Next.js adapters; browser downloads use same-origin BFF routes.
+Step 15A replaces the Documents placeholder with a real PostgreSQL-backed evidence-ingestion product while preserving the Ask and Evaluation workflows. Server components load initial metadata directly through the server-only FastAPI client; browser refreshes, polling, detail reads, and uploads use same-origin BFF routes with runtime validation.
 
 The evaluation product separates evidence retrieval, unsupported-answer safety, answer completeness, calibrated confidence, provider availability, and request failures. It never runs the benchmark, invents metrics, or reads backend files from the browser.
 
@@ -50,10 +50,11 @@ npm run dev
 
 ## Route map
 
-| Route | Phase 14C state |
+| Route | Product state |
 | --- | --- |
 | `/` | Overview with live backend health |
-| `/documents` | Step 15A frontend placeholder; no document-management UI yet |
+| `/documents` | Persistent registry, filename search, status filters, pagination, and one-PDF upload |
+| `/documents/[documentId]` | Safe metadata, indexing identifiers, and ingestion lifecycle |
 | `/ask` | Live citation-backed Ask workspace |
 | `/evaluations/overview` | Real-data quality outcomes and production gates |
 | `/evaluations/cases` | Filterable TanStack case table and URL-selected detail drawer |
@@ -63,6 +64,10 @@ npm run dev
 | `/system` | Live health, architecture, and capability boundaries |
 | `/api/health` | Safe Next.js health BFF response |
 | `/api/ask` | Validated same-origin Ask BFF endpoint |
+| `/api/documents` | Validated document-list BFF endpoint |
+| `/api/documents/upload` | Multipart one-PDF upload BFF endpoint |
+| `/api/documents/[documentId]` | Safe document-detail BFF endpoint |
+| `/api/documents/[documentId]/status` | Compact processing-status BFF endpoint |
 | `/api/evaluations/latest` | Safe latest-evaluation JSON BFF/download |
 | `/api/evaluations/latest.csv` | Preserved latest-evaluation CSV BFF/download |
 
@@ -107,7 +112,15 @@ The Streamlit evaluation dashboard remains the internal QA console. Persistent P
 3. FastAPI retrieves and calibrates evidence, then returns a structured supported, unsupported, or provider-fallback response.
 4. A supported answer is presented only when at least one citation is present. Retrieval scores remain raw decimals; only the calibrated confidence score is displayed as a percentage.
 
-Ask searches all documents currently indexed in the evidence store. Step 15 adds backend document metadata but does not add a document selector or document-management UI.
+Ask searches all documents currently indexed in the evidence store. The Documents product manages ingestion metadata, but document-scoped selection and filtering remain intentionally unavailable in Ask.
+
+## Documents data flow
+
+`/documents` reads PostgreSQL-backed metadata with a fixed backend page size of 20. Filename search, `ready`/`processing`/`failed` filters, and offset pagination are represented in the URL so refresh and browser navigation preserve state. One page-level timer polls only while the visible registry contains processing records and pauses when the page is hidden.
+
+The upload sheet accepts one PDF, forwards multipart data through `/api/documents/upload`, and displays indeterminate synchronous indexing state without invented percentages. New uploads refresh the current registry; SHA-256 duplicates are informational and link to the existing UUID without claiming a second index operation.
+
+Document detail routes show safe PostgreSQL metadata, counts, timestamps, Chroma collection, embedding model, and the recorded ingestion lifecycle. The product never renders source paths, SHA-256 values, PDF text, legacy `preview_text`, or `sample_chunks`. Database unavailability is distinct from an empty registry, while existing Chroma-backed Ask remains independent.
 
 Supported responses show the grounded answer, a source/page summary, calibrated evidence confidence, decision reasons, the real citation metadata in the Provenance Rail, and a review disclaimer. Unsupported responses do not show speculative answer text. If evidence is answer-ready while the configured answer provider is unavailable, the workspace shows an amber citation-only fallback and preserves the available evidence.
 
@@ -126,7 +139,7 @@ The unsupported question must not produce external legal advice. Ask is synchron
 
 The backend already supports PDF extraction and indexing, ChromaDB retrieval, grounded generation, page-level citations, calibrated confidence, safety guardrails, observability, evaluation, provider retries, and safe citation-only fallback.
 
-Step 15 adds PostgreSQL-backed document metadata, durable local source storage, and read-only list/detail/status contracts. The Documents UI, delete/reindex controls, persistent evaluation history, streaming, Docker Compose, authentication, roles, multi-tenancy, dark mode, and agent behavior remain pending. There is intentionally no authentication in this phase; no production authorization claim is implied.
+Step 15A adds the responsive Documents registry, real upload, detail route, lifecycle visualization, polling, and controlled service states. Delete, reindex, source download, document-scoped Ask, bulk upload, background workers, persistent evaluation history, streaming, Docker Compose, authentication, roles, multi-tenancy, dark mode, and agent behavior remain pending. There is intentionally no authentication in this phase; no production authorization claim is implied.
 
 ## Verification
 

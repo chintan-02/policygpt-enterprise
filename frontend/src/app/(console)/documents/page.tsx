@@ -1,14 +1,13 @@
-import { FileStack } from "lucide-react";
-import { PlaceholderPage } from "@/components/policygpt/placeholder-page";
+import { DocumentsProduct } from "@/components/features/documents/documents-product";
+import { loadDocumentsPageState } from "@/lib/api/documents";
+import { documentQueryString, parseDocumentQuery } from "@/lib/domain/document";
 
-export default function DocumentsPage() {
-  return (
-    <PlaceholderPage
-      title="Documents"
-      description="Manage the policy sources available to PolicyGPT."
-      emptyTitle="Document workspace is being connected"
-      emptyDescription="Persistent document history will be added after the PostgreSQL metadata layer."
-      icon={FileStack}
-    />
-  );
+export default async function DocumentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = parseDocumentQuery(await searchParams);
+  const state = await loadDocumentsPageState(query);
+  return <DocumentsProduct key={documentQueryString(query)} initialState={state} query={query} />;
 }
