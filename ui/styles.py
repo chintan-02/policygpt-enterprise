@@ -191,6 +191,127 @@ def load_global_styles() -> None:
             color: #0F172A;
             font-weight: 650;
         }
+
+        .pgpt-eval-metric {
+            min-height: 152px;
+            background: var(--pgpt-card);
+            border: 1px solid var(--pgpt-border);
+            border-top: 3px solid #CBD5E1;
+            border-radius: 14px;
+            padding: 0.95rem 1rem;
+            box-shadow: 0 7px 20px rgba(15, 23, 42, 0.035);
+            margin-bottom: 0.8rem;
+        }
+
+        .pgpt-eval-metric-success { border-top-color: #10B981; }
+        .pgpt-eval-metric-danger { border-top-color: #EF4444; }
+
+        .pgpt-eval-metric-value {
+            color: var(--pgpt-navy);
+            font-size: 1.42rem;
+            font-weight: 800;
+            margin-top: 0.25rem;
+        }
+
+        .pgpt-eval-metric-secondary {
+            color: var(--pgpt-teal);
+            font-size: 0.95rem;
+            font-weight: 750;
+            margin-top: 0.1rem;
+        }
+
+        .pgpt-eval-metric-caption {
+            color: #64748B;
+            font-size: 0.78rem;
+            line-height: 1.35;
+            margin-top: 0.35rem;
+        }
+
+        .pgpt-eval-gate {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.85rem 0;
+            border-bottom: 1px solid var(--pgpt-border);
+        }
+
+        .pgpt-eval-gate:last-child { border-bottom: 0; }
+
+        .pgpt-eval-gate-title {
+            color: var(--pgpt-navy);
+            font-weight: 750;
+        }
+
+        .pgpt-eval-gate-result {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.55rem;
+            min-width: 210px;
+        }
+
+        .pgpt-eval-gate-value {
+            color: var(--pgpt-slate);
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .pgpt-eval-provider-warning,
+        .pgpt-eval-answer-provider {
+            background: #FFFBEB;
+            border: 1px solid #FDE68A;
+            border-left: 4px solid #D97706;
+            border-radius: 14px;
+            padding: 1rem 1.1rem;
+            margin: 0.8rem 0 1rem;
+        }
+
+        .pgpt-eval-empty,
+        .pgpt-eval-invalid {
+            background: #FFFFFF;
+            border: 1px dashed #CBD5E1;
+            border-radius: 16px;
+            padding: 1.35rem;
+            margin: 1rem 0;
+        }
+
+        .pgpt-eval-invalid { border-left: 4px solid #B91C1C; }
+
+        .pgpt-eval-path {
+            color: #64748B;
+            font-family: monospace;
+            font-size: 0.78rem;
+            margin-top: 0.6rem;
+            overflow-wrap: anywhere;
+        }
+
+        .pgpt-eval-answer {
+            background: #FFFFFF;
+            border: 1px solid var(--pgpt-border);
+            border-left: 4px solid var(--pgpt-teal);
+            border-radius: 14px;
+            padding: 1rem 1.1rem;
+            margin: 0.8rem 0 1rem;
+        }
+
+        .pgpt-eval-answer-unsupported {
+            background: #F8FAFC;
+            border-left-color: #64748B;
+        }
+
+        .pgpt-eval-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.38rem;
+            margin: 0.3rem 0 0.9rem;
+        }
+
+        @media (max-width: 760px) {
+            .pgpt-eval-gate { align-items: flex-start; flex-direction: column; }
+            .pgpt-eval-gate-result { justify-content: flex-start; min-width: 0; }
+            .pgpt-eval-metric { min-height: 0; }
+        }
         </style>
         """,
         unsafe_allow_html=True,

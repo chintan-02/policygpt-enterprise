@@ -10,7 +10,7 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 
 ## Project Status
 
-**Current phase:** Phase 1 — Core RAG MVP
+**Current phase:** Phase 2 — RAG quality and observability
 
 ### Completed
 
@@ -34,15 +34,15 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 * Clean citation preview formatting
 * Professional empty, loading, and error UI states
 * Backend health endpoint with safe RAG configuration details
+* Verified RAG evaluation dataset and repeatable runner
+* Explainable confidence calibration and safety guardrails
+* Read-only Streamlit RAG Evaluation Dashboard
 
 ### Planned Later
 
-* RAG evaluation
-* Confidence analytics
 * PostgreSQL metadata storage
 * Docker Compose
 * Logging dashboard
-* Evaluation dashboard
 * Multi-document comparison
 * Compliance report generation
 * Cloud deployment
@@ -495,11 +495,16 @@ policygpt-enterprise/
 │   │   ├── badges.py
 │   │   ├── cards.py
 │   │   ├── citation_card.py
+│   │   ├── evaluation_components.py
 │   │   └── evidence_panel.py
+│   │
+│   ├── services/
+│   │   └── evaluation_results_service.py
 │   │
 │   └── pages/
 │       ├── ask.py
 │       ├── evidence.py
+│       ├── evaluation_dashboard.py
 │       └── architecture.py
 │
 ├── docs/
@@ -578,6 +583,9 @@ GROQ_MODEL_NAME=llama-3.3-70b-versatile
 
 OPENAI_API_KEY=
 OPENAI_MODEL_NAME=gpt-4o-mini
+
+# Optional repository-relative dashboard result path
+POLICYGPT_EVAL_RESULTS_PATH=eval/results/latest_eval_results.json
 ```
 
 Do not commit your real `.env` file.
@@ -629,6 +637,41 @@ Open:
 ```text
 http://localhost:8501
 ```
+
+### RAG Evaluation Dashboard
+
+The **RAG Evaluation** page is a read-only quality and observability view over:
+
+```text
+eval/results/latest_eval_results.json
+eval/results/latest_eval_results.csv
+```
+
+Generate or refresh those artifacts outside Streamlit:
+
+```bash
+python eval/validate_dataset.py
+python eval/run_eval.py --request-delay-seconds 5
+```
+
+Then start the existing UI entrypoint:
+
+```bash
+streamlit run ui/app.py
+```
+
+Use **Refresh results** in the dashboard after a new run. The optional
+`POLICYGPT_EVAL_RESULTS_PATH` setting may point to another repository-relative
+JSON artifact; browser users cannot choose arbitrary filesystem paths.
+
+Partial runs remain viewable but are labeled clearly and should not be treated
+as the full benchmark. Provider fallback is reported separately from retrieval
+quality: an answer-ready case can retain correct citations while external
+generation is replaced by the safe citation-only fallback. The dashboard does
+not infer a specific provider error unless the artifact records one.
+
+Generated JSON and CSV outputs are ignored by Git and should be regenerated in
+each environment. The dashboard never runs the evaluator or reads provider logs.
 
 ---
 
@@ -743,7 +786,6 @@ Current limitations:
 * no role-based access control
 * no PostgreSQL metadata database yet
 * no document deletion endpoint yet
-* no evaluation dashboard yet
 * no multi-document comparison yet
 * no OCR for scanned PDFs yet
 * no production deployment yet
@@ -770,6 +812,7 @@ These are intentionally deferred until after the core RAG flow is working.
 
 * RAG evaluation
 * confidence analytics
+* evaluation dashboard
 * PostgreSQL metadata
 * Docker Compose
 * logging for latency, retrieval score, and token usage
