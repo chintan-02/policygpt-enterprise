@@ -17,20 +17,27 @@ class VectorStoreService:
     It should not extract PDFs, clean text, create chunks, or call an LLM.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, create_collection: bool = True) -> None:
         settings = get_settings()
 
         self.persist_directory = settings.chroma_persist_directory
         self.collection_name = settings.chroma_collection_name
 
-        Path(self.persist_directory).mkdir(parents=True, exist_ok=True)
+        persist_path = Path(self.persist_directory)
+        if create_collection:
+            persist_path.mkdir(parents=True, exist_ok=True)
+        elif not persist_path.is_dir():
+            raise ServiceException("Vector evidence storage is unavailable.")
 
         self.client = chromadb.PersistentClient(path=self.persist_directory)
 
-        self.collection = self.client.get_or_create_collection(
-            name=self.collection_name,
-            metadata={"hnsw:space": "cosine"},
-        )
+        if create_collection:
+            self.collection = self.client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"hnsw:space": "cosine"},
+            )
+        else:
+            self.collection = self.client.get_collection(name=self.collection_name)
 
     def add_chunks(
         self,
@@ -107,6 +114,13 @@ class VectorStoreService:
             return self.collection.count()
         except Exception as exc:
             raise ServiceException("Failed to count ChromaDB chunks.") from exc
+
+    def check_readiness(self) -> None:
+        """Verify collection access without searching, embedding, or writing."""
+        try:
+            self.collection.count()
+        except Exception as exc:
+            raise ServiceException("Vector evidence storage is unavailable.") from exc
 
     def delete_document_chunks(self, document_id: str) -> None:
         """Compensate a partial ingestion without affecting other documents."""

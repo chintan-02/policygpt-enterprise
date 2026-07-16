@@ -41,7 +41,11 @@ def _raise_safe_artifact_error(exc: Exception) -> NoReturn:
     ) from exc
 
 
-@router.get("/latest", response_model=EvaluationArtifactResponse)
+@router.get(
+    "/latest",
+    response_model=EvaluationArtifactResponse,
+    summary="Read the latest evaluation artifact",
+)
 def get_latest_evaluation(
     service: EvaluationResultsService = Depends(get_evaluation_results_service),
 ) -> EvaluationArtifactResponse:
@@ -51,7 +55,11 @@ def get_latest_evaluation(
         _raise_safe_artifact_error(exc)
 
 
-@router.get("/latest.csv", response_class=Response)
+@router.get(
+    "/latest.csv",
+    response_class=Response,
+    summary="Download the latest evaluation cases as CSV",
+)
 def download_latest_evaluation_csv(
     service: EvaluationResultsService = Depends(get_evaluation_results_service),
 ) -> Response:

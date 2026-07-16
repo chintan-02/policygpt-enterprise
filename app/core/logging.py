@@ -40,6 +40,11 @@ def configure_logging() -> None:
         level=log_level,
     )
 
+    # The application emits one structured completion event per non-health
+    # request. Disable Uvicorn's second access line to avoid duplicate logs and
+    # health-check noise.
+    logging.getLogger("uvicorn.access").disabled = True
+
     structlog.configure(
         processors=[
             *shared_processors,

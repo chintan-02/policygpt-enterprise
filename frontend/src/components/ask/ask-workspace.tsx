@@ -1,7 +1,7 @@
 "use client";
 
 import { RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAsk } from "@/hooks/use-ask";
@@ -41,8 +41,6 @@ function LoadingPanel() {
 }
 
 export function AskWorkspace({ health }: { health: FrontendHealthResponse }) {
-  const [question, setQuestion] = useState("");
-  const [editingQuestion, setEditingQuestion] = useState(true);
   const {
     state,
     result,
@@ -52,6 +50,10 @@ export function AskWorkspace({ health }: { health: FrontendHealthResponse }) {
     submit,
     cancel,
     reset,
+    question,
+    editingQuestion,
+    setQuestion,
+    setEditingQuestion,
   } = useAsk();
   const resultFocusRef = useRef<HTMLElement>(null);
   const messageFocusRef = useRef<HTMLDivElement>(null);
@@ -86,10 +88,7 @@ export function AskWorkspace({ health }: { health: FrontendHealthResponse }) {
 
   async function submitQuestion() {
     setEditingQuestion(true);
-    const nextResult = await submit(question);
-    if (nextResult && isCompletedResultState(nextResult.state)) {
-      setEditingQuestion(false);
-    }
+    await submit(question);
   }
 
   return (

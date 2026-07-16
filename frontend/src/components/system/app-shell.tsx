@@ -1,4 +1,4 @@
-import type { FrontendHealthResponse } from "@/lib/api/types";
+import type { FrontendHealthResponse, HealthStatus } from "@/lib/api/types";
 import type { PublicAppEnvironment } from "@/lib/environment";
 import { AppSidebar } from "./app-sidebar";
 import { Topbar } from "./topbar";
@@ -7,10 +7,12 @@ export function AppShell({
   children,
   health,
   app,
+  platformStatus,
 }: {
   children: React.ReactNode;
   health: FrontendHealthResponse;
   app: PublicAppEnvironment;
+  platformStatus: HealthStatus;
 }) {
   return (
     <div className="min-h-dvh bg-background">
@@ -22,7 +24,7 @@ export function AppShell({
       </a>
       <AppSidebar health={health} app={app} />
       <div className="min-w-0 xl:ml-[248px]">
-        <Topbar health={health} app={app} />
+        <Topbar health={health} app={app} platformStatus={platformStatus} />
         <main id="main-content" className="min-w-0">
           <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-7 lg:py-7">
             {children}

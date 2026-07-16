@@ -1,116 +1,170 @@
 import {
-  ArrowDown,
-  ArrowRight,
+  Activity,
+  AppWindow,
+  Boxes,
   CheckCircle2,
   CircleDashed,
+  Database,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { PageHeader } from "@/components/system/page-header";
 import { QualityCard } from "@/components/policygpt/quality-card";
 import { StatusPill } from "@/components/policygpt/status-pill";
 import { SystemMessage } from "@/components/policygpt/system-message";
 import { getBackendHealth } from "@/lib/api/health";
+import { getBackendReadiness } from "@/lib/api/readiness";
 import { getPublicAppEnvironment } from "@/lib/environment";
-import { architectureSteps } from "@/lib/navigation";
+import {
+  dependencyPresentation,
+  deriveSystemOperationalState,
+  providerPresentation,
+} from "@/lib/domain/system";
 
 const availableCapabilities = [
-  "Evidence-backed question workspace connected to the real FastAPI RAG pipeline",
-  "PDF extraction and indexing",
-  "ChromaDB evidence retrieval",
-  "Grounded generation with page-level citations",
-  "Calibrated confidence and numeric contradiction guardrails",
-  "Legal-scope guardrails and safe citation-only fallback",
-  "Structured observability and custom RAG evaluation",
+  "PostgreSQL document identity and ingestion lifecycle metadata",
+  "ChromaDB evidence retrieval with page-level provenance",
+  "Evidence-gated answers with calibrated confidence",
+  "Provider-safe citation-only fallback",
+  "Structured request and RAG observability",
+  "Read-only evaluation product and release-like Compose deployment",
 ];
 
 const pendingCapabilities = [
-  "Persistent document library",
-  "Persistent PostgreSQL evaluation history",
-  "Authentication, roles, and multi-tenant controls",
+  "Authentication, authorization, and tenant isolation",
+  "Managed secrets, backups, TLS termination, and hosted monitoring",
+  "Background ingestion workers and multi-replica coordination",
 ];
 
+function formatCheckedAt(value: string): string {
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.getTime())
+    ? "Unknown"
+    : timestamp.toLocaleString("en-CA", {
+        dateStyle: "medium",
+        timeStyle: "medium",
+        timeZone: "UTC",
+      }) + " UTC";
+}
+
 export default async function SystemPage() {
-  const [health, app] = await Promise.all([
+  const [health, readiness, app] = await Promise.all([
     getBackendHealth(),
+    getBackendReadiness(),
     Promise.resolve(getPublicAppEnvironment()),
   ]);
+  const overall = deriveSystemOperationalState(health, readiness);
+  const database = dependencyPresentation(readiness.database);
+  const vectorStore = dependencyPresentation(readiness.vectorStore);
+  const provider = providerPresentation(readiness.provider);
+  const readinessPresentation = dependencyPresentation(
+    readiness.status === "ready"
+      ? "ready"
+      : readiness.status === "not_ready"
+        ? "unavailable"
+        : "unknown",
+  );
+  const messageVariant =
+    overall.status === "operational"
+      ? "success"
+      : overall.status === "degraded"
+        ? "warning"
+        : "error";
 
   return (
     <>
       <PageHeader
         title="System"
-        description="Review platform connectivity, architecture, and product capability boundaries."
+        description="Review live service readiness, provider mode, and operational boundaries."
+        actions={
+          <a
+            href="/system"
+            className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3.5 py-2 text-sm font-semibold text-neutral-700 shadow-xs hover:bg-neutral-50"
+          >
+            <RefreshCw aria-hidden="true" size={16} strokeWidth={1.75} />
+            Refresh
+          </a>
+        }
       />
 
-      <div className="grid gap-[22px] lg:grid-cols-3">
-        <QualityCard tier="secondary" label="Backend health">
-          <StatusPill status={health.status} className="mt-4" />
-          <p className="mt-3 text-sm leading-5 text-neutral-600">{health.message}</p>
-        </QualityCard>
-        <QualityCard tier="secondary" label="Frontend version">
-          <div className="font-metric mt-4 text-2xl font-semibold text-neutral-900">
-            {app.appVersion}
-          </div>
-          <p className="mt-3 text-sm text-neutral-500">Phase 14C evaluation product</p>
-        </QualityCard>
-        <QualityCard tier="secondary" label="Environment">
-          <div className="font-metric mt-4 text-2xl font-semibold text-neutral-900">
-            {app.appEnvironment}
-          </div>
-          <p className="mt-3 text-sm text-neutral-500">
-            Frontend environment label
-          </p>
-        </QualityCard>
+      <SystemMessage variant={messageVariant} title={overall.title}>
+        {overall.message}
+      </SystemMessage>
+
+      <div className="mt-[22px] grid gap-[22px] md:grid-cols-2 xl:grid-cols-3">
+        <QualityCard
+          tier="outcome"
+          label="Frontend"
+          icon={AppWindow}
+          status="operational"
+          statusLabel="Operational"
+          interpretation={`Next.js ${app.appVersion} is serving this console in ${app.appEnvironment}.`}
+        />
+        <QualityCard
+          tier="outcome"
+          label="Backend liveness"
+          icon={Activity}
+          status={health.status}
+          interpretation={health.message}
+        />
+        <QualityCard
+          tier="outcome"
+          label="Backend readiness"
+          icon={CheckCircle2}
+          status={readinessPresentation.status}
+          statusLabel={readinessPresentation.label}
+          interpretation={readiness.message}
+        />
+        <QualityCard
+          tier="outcome"
+          label="PostgreSQL metadata"
+          icon={Database}
+          status={database.status}
+          statusLabel={database.label}
+          interpretation="Required for document identity, duplicate prevention, and ingestion lifecycle metadata."
+        />
+        <QualityCard
+          tier="outcome"
+          label="Chroma evidence store"
+          icon={Boxes}
+          status={vectorStore.status}
+          statusLabel={vectorStore.label}
+          interpretation="Required for indexed evidence access; readiness never runs a similarity search or embedding."
+        />
+        <QualityCard
+          tier="outcome"
+          label="Answer generation"
+          icon={Sparkles}
+          status={provider.status}
+          statusLabel={provider.label}
+          interpretation={
+            readiness.provider === "configured"
+              ? `${readiness.providerName ?? "Configured"} generation is enabled. Provider reachability is not tested from this page.`
+              : "Evidence remains available without a provider key or when generation cannot be used."
+          }
+        />
       </div>
 
-      <section className="mt-8" aria-labelledby="architecture-heading">
-        <h2 id="architecture-heading" className="text-lg font-semibold text-neutral-900">
-          Evidence pipeline
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          The governed path from source policy to traceable response.
-        </p>
-        <QualityCard tier="secondary" className="mt-4">
-          <ol className="grid gap-0 md:grid-cols-3 md:gap-x-5 md:gap-y-6 xl:grid-cols-6 xl:gap-4">
-            {architectureSteps.map((step, index) => {
-              const Icon = step.icon;
-              return (
-                <li key={step.label} className="relative min-w-0">
-                  <div className="flex items-center gap-3 py-1.5 md:flex-col md:items-start md:py-0">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-teal-100 bg-teal-50 text-teal-700">
-                      <Icon aria-hidden="true" size={18} strokeWidth={1.75} />
-                    </div>
-                    <span className="text-sm leading-5 font-medium text-neutral-700 xl:whitespace-nowrap">
-                      {step.label}
-                    </span>
-                  </div>
-                  {index < architectureSteps.length - 1 ? (
-                    <>
-                      <ArrowDown
-                        aria-hidden="true"
-                        className="my-0.5 ml-2 text-neutral-500 md:hidden"
-                        size={16}
-                        strokeWidth={1.75}
-                      />
-                      <ArrowRight
-                        aria-hidden="true"
-                        className="absolute top-2 -right-2.5 hidden text-neutral-500 xl:block"
-                        size={16}
-                        strokeWidth={1.75}
-                      />
-                    </>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ol>
-        </QualityCard>
-      </section>
+      <QualityCard tier="engineering" className="mt-[22px]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-neutral-900">Operational check</h2>
+            <p className="mt-1 text-sm text-neutral-600">
+              Last checked {formatCheckedAt(readiness.checkedAt)}
+            </p>
+          </div>
+          <StatusPill status={overall.status} />
+        </div>
+        {overall.status !== "operational" && readiness.requestId ? (
+          <p className="font-metric mt-3 text-xs text-neutral-500">
+            Diagnostic request ID: {readiness.requestId}
+          </p>
+        ) : null}
+      </QualityCard>
 
       <div className="mt-[22px] grid gap-[22px] lg:grid-cols-2">
         <QualityCard tier="secondary">
-          <h2 className="text-base font-semibold text-neutral-900">
-            Backend capabilities available
-          </h2>
+          <h2 className="text-base font-semibold text-neutral-900">Implemented boundaries</h2>
           <ul className="mt-4 space-y-3">
             {availableCapabilities.map((capability) => (
               <li key={capability} className="flex gap-2.5 text-sm text-neutral-600">
@@ -126,9 +180,7 @@ export default async function SystemPage() {
           </ul>
         </QualityCard>
         <QualityCard tier="secondary">
-          <h2 className="text-base font-semibold text-neutral-900">
-            Product capabilities not yet available
-          </h2>
+          <h2 className="text-base font-semibold text-neutral-900">Not yet implemented</h2>
           <ul className="mt-4 space-y-3">
             {pendingCapabilities.map((capability) => (
               <li key={capability} className="flex gap-2.5 text-sm text-neutral-600">
@@ -143,17 +195,6 @@ export default async function SystemPage() {
             ))}
           </ul>
         </QualityCard>
-      </div>
-
-      <div className="mt-[22px]">
-        <SystemMessage
-          variant={health.backendReachable ? "success" : "warning"}
-          title={health.backendReachable ? "Backend reachable" : "Backend unavailable"}
-        >
-          {health.backendReachable
-            ? "The interface is using the live FastAPI health result. Provider reliability and evaluation quality are not inferred from configuration."
-            : "The console remains available while the backend is offline. Start the FastAPI service and refresh to update this state."}
-        </SystemMessage>
       </div>
     </>
   );

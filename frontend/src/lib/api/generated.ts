@@ -12,13 +12,30 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Health Check
-         * @description Lightweight backend health check.
-         *
-         *     This endpoint does not call external LLM providers or run expensive checks.
-         *     It confirms that the FastAPI app is running and exposes safe RAG config details.
+         * Check process liveness
+         * @description Lightweight process check. It does not contact PostgreSQL, ChromaDB, embedding models, or answer-generation providers.
          */
         get: operations["health_check_api_v1_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check deployment readiness
+         * @description Read-only PostgreSQL and ChromaDB accessibility checks. LLM providers are informational and never gate readiness.
+         */
+        get: operations["readiness_check_api_v1_ready_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -36,7 +53,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload Document */
+        /**
+         * Ingest a policy PDF
+         * @description Validate, store, extract, chunk, embed, and index one PDF with durable metadata.
+         */
         post: operations["upload_document_api_v1_documents_upload_post"];
         delete?: never;
         options?: never;
@@ -51,7 +71,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Documents */
+        /** List document metadata */
         get: operations["list_documents_api_v1_documents_get"];
         put?: never;
         post?: never;
@@ -68,7 +88,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Document */
+        /** Get document metadata */
         get: operations["get_document_api_v1_documents__document_id__get"];
         put?: never;
         post?: never;
@@ -85,7 +105,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Document Status */
+        /** Get ingestion lifecycle status */
         get: operations["get_document_status_api_v1_documents__document_id__status_get"];
         put?: never;
         post?: never;
@@ -104,7 +124,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Search Documents */
+        /** Search indexed evidence */
         post: operations["search_documents_api_v1_documents_search_post"];
         delete?: never;
         options?: never;
@@ -121,7 +141,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Retrieve Document Evidence */
+        /** Retrieve gated citation evidence */
         post: operations["retrieve_document_evidence_api_v1_documents_evidence_post"];
         delete?: never;
         options?: never;
@@ -138,7 +158,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ask Document Question */
+        /**
+         * Ask an evidence-gated policy question
+         * @description Return a supported answer or safe fallback with page-level provenance and confidence.
+         */
         post: operations["ask_document_question_api_v1_documents_ask_post"];
         delete?: never;
         options?: never;
@@ -153,7 +176,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Latest Evaluation */
+        /** Read the latest evaluation artifact */
         get: operations["get_latest_evaluation_api_v1_evaluations_latest_get"];
         put?: never;
         post?: never;
@@ -170,7 +193,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Download Latest Evaluation Csv */
+        /** Download the latest evaluation cases as CSV */
         get: operations["download_latest_evaluation_csv_api_v1_evaluations_latest_csv_get"];
         put?: never;
         post?: never;
@@ -259,6 +282,14 @@ export interface components {
             direct_support: boolean;
             /** Decision Reasons */
             decision_reasons: string[];
+        };
+        /** DependencyCheck */
+        DependencyCheck: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "unavailable";
         };
         /** DocumentAnswerRequest */
         DocumentAnswerRequest: {
@@ -814,6 +845,49 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** LivenessResponse */
+        LivenessResponse: {
+            /**
+             * Status
+             * @default operational
+             * @constant
+             */
+            status: "operational";
+            /** Service */
+            service: string;
+            /** Version */
+            version: string;
+            /** Environment */
+            environment: string;
+        };
+        /** ProviderMode */
+        ProviderMode: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "configured" | "citation_only_fallback";
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "groq" | "openai" | "none";
+        };
+        /** ReadinessChecks */
+        ReadinessChecks: {
+            database: components["schemas"]["DependencyCheck"];
+            vector_store: components["schemas"]["DependencyCheck"];
+        };
+        /** ReadinessResponse */
+        ReadinessResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "not_ready";
+            checks: components["schemas"]["ReadinessChecks"];
+            answer_generation: components["schemas"]["ProviderMode"];
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -851,9 +925,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["LivenessResponse"];
+                };
+            };
+        };
+    };
+    readiness_check_api_v1_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessResponse"];
+                };
+            };
+            /** @description Required dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessResponse"];
                 };
             };
         };

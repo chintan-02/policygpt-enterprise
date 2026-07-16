@@ -11,8 +11,10 @@ services on a private bridge network:
 | `frontend` | Production Next.js standalone server | `127.0.0.1:${FRONTEND_HOST_PORT}` |
 
 The startup dependency chain is intentional: PostgreSQL must be healthy,
-the migration must exit successfully, FastAPI must be healthy, and only then
-does the frontend start. The migration service is not a long-running process.
+the migration must exit successfully, FastAPI dependency readiness must pass,
+and only then does the frontend start. The frontend health check uses its
+server-side readiness BFF, so it also confirms FastAPI readiness. The migration
+service is not a long-running process.
 
 This is a reproducible local deployment profile, not a cloud-production
 deployment. Authentication, TLS termination, external object storage, managed
@@ -70,6 +72,10 @@ existing safe citation-only fallback. The browser-facing frontend receives
 only explicitly named `NEXT_PUBLIC_*` values. `FASTAPI_URL` stays server-only
 and resolves to `http://backend:8000` inside the Compose network.
 
+Keep `POLICYGPT_EVAL_RESULTS_PATH` repository-relative. Its default is
+`eval/results/latest_eval_results.json`; absolute container or host paths are
+rejected so evaluation reads cannot escape the repository root.
+
 Validate the resolved configuration without starting containers:
 
 ```bash
@@ -94,7 +100,9 @@ Open:
 - Product UI: <http://localhost:3000>
 - FastAPI documentation: <http://localhost:8000/docs>
 - FastAPI health: <http://localhost:8000/api/v1/health>
+- FastAPI readiness: <http://localhost:8000/api/v1/ready>
 - Frontend health proxy: <http://localhost:3000/api/health>
+- Frontend readiness proxy: <http://localhost:3000/api/ready>
 
 If alternate host ports were configured, use those ports instead. Service-to-
 service URLs do not change because containers use internal ports and DNS names.
@@ -146,9 +154,27 @@ Use `COMPOSE_ENV_FILE` if the env file has another name:
 COMPOSE_ENV_FILE=.env.compose.validation scripts/compose/smoke-test.sh
 ```
 
-The script confirms container health, the migration exit code, FastAPI health,
-the frontend health route, and the document-list path. It does not upload a
+The script confirms container health, the migration exit code, FastAPI
+liveness/readiness, frontend liveness/readiness, and the document-list path. It does not upload a
 file, invoke an LLM provider, or modify stored data.
+
+To generate and install a fresh evaluation artifact without replacing the
+evaluation-results volume, run from the repository root:
+
+```bash
+bash scripts/evaluation/run-compose-eval.sh
+```
+
+The helper uses `BACKEND_HOST_PORT` from the Compose env file, executes the
+complete 16-case dataset, verifies both output formats, copies completed files
+into the running backend volume, and confirms the backend evaluation API
+returns HTTP 200. The browser remains a read-only artifact viewer.
+
+Liveness is deliberately lightweight and stays available during PostgreSQL or
+Chroma outages. Readiness performs read-only PostgreSQL and Chroma checks and
+returns 503 when either required dependency is unavailable. Provider keys and
+provider reachability never gate readiness; citation-only fallback remains a
+valid operating mode.
 
 For direct inspection:
 

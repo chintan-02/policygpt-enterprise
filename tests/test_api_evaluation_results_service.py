@@ -229,6 +229,26 @@ def test_partial_and_full_run_detection(tmp_path: Path) -> None:
     assert service(tmp_path).load_latest().artifact.is_partial is False
 
 
+def test_configured_path_accepts_repository_relative_and_rejects_absolute(
+    tmp_path: Path,
+) -> None:
+    configured_path = "eval/results/latest_eval_results.json"
+    configured_service = EvaluationResultsService(
+        configured_path,
+        repository_root=tmp_path,
+    )
+
+    assert configured_service.json_path == (tmp_path / configured_path).resolve()
+    with pytest.raises(
+        EvaluationArtifactInvalidError,
+        match="must be repository-relative",
+    ):
+        EvaluationResultsService(
+            "/app/eval/results/latest_eval_results.json",
+            repository_root=tmp_path,
+        )
+
+
 @pytest.mark.parametrize("configured_path", ["../outside.json", "/tmp/result.json"])
 def test_unsafe_paths_are_rejected(tmp_path: Path, configured_path: str) -> None:
     with pytest.raises(EvaluationArtifactInvalidError):

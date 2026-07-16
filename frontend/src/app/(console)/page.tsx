@@ -1,15 +1,24 @@
-import { Activity, Bot, SearchCheck, ShieldCheck } from "lucide-react";
+import { Activity, MessageSquareText } from "lucide-react";
+import { OverviewEvaluationPanel } from "@/components/features/evaluations/overview-evaluation-panel";
 import { PageHeader } from "@/components/system/page-header";
 import { QualityCard } from "@/components/policygpt/quality-card";
 import { StatusPill } from "@/components/policygpt/status-pill";
 import { getBackendHealth } from "@/lib/api/health";
-import { titleCase } from "@/lib/formatters";
+import { getBackendReadiness } from "@/lib/api/readiness";
+import { deriveSystemOperationalState } from "@/lib/domain/system";
+import {
+  answerGenerationPresentation,
+  coreEvidencePresentation,
+} from "@/lib/domain/overview";
 
 export default async function OverviewPage() {
-  const health = await getBackendHealth();
-  const operationalCopy = health.backendReachable
-    ? "The Ask workspace is connected to the live FastAPI evidence pipeline. Answers are shown only when the backend returns citation-backed support."
-    : "The product interface is available, but the FastAPI backend could not be reached. Start the backend on port 8000 and refresh the page.";
+  const [health, readiness] = await Promise.all([
+    getBackendHealth(),
+    getBackendReadiness(),
+  ]);
+  const overall = deriveSystemOperationalState(health, readiness);
+  const evidence = coreEvidencePresentation(health, readiness);
+  const generation = answerGenerationPresentation(readiness);
 
   return (
     <>
@@ -18,40 +27,28 @@ export default async function OverviewPage() {
         description="Monitor policy intelligence, evidence quality, and platform health."
       />
 
-      <div className="grid gap-[22px] sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-[22px] grid gap-[22px] sm:grid-cols-2">
         <QualityCard
           tier="outcome"
-          label="Platform Health"
-          value={titleCase(health.status)}
-          status={health.status}
-          interpretation={health.message}
+          label="Core evidence services"
+          value={evidence.value}
+          status={evidence.status}
+          statusLabel={evidence.statusLabel}
+          interpretation={evidence.description}
           icon={Activity}
         />
         <QualityCard
           tier="outcome"
-          label="Evidence Retrieval"
-          status="neutral"
-          statusLabel="Not evaluated"
-          interpretation="Run a full RAG evaluation to calculate evidence quality."
-          icon={SearchCheck}
-        />
-        <QualityCard
-          tier="outcome"
-          label="Safety Guardrails"
-          status="neutral"
-          statusLabel="Not evaluated"
-          interpretation="Unsupported-answer safety appears after evaluation data is connected."
-          icon={ShieldCheck}
-        />
-        <QualityCard
-          tier="outcome"
-          label="Answer Provider"
-          status="neutral"
-          statusLabel="Not measured"
-          interpretation="Provider reliability appears after evaluation data is connected."
-          icon={Bot}
+          label="Answer generation"
+          value={generation.value}
+          status={generation.status}
+          statusLabel={generation.statusLabel}
+          interpretation={generation.description}
+          icon={MessageSquareText}
         />
       </div>
+
+      <OverviewEvaluationPanel />
 
       <QualityCard tier="secondary" className="mt-[22px]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -60,10 +57,10 @@ export default async function OverviewPage() {
               Operational summary
             </h2>
             <p className="mt-2 text-sm leading-6 text-neutral-600">
-              {operationalCopy}
+              {overall.message}
             </p>
           </div>
-          <StatusPill status={health.status} />
+          <StatusPill status={overall.status} />
         </div>
       </QualityCard>
     </>

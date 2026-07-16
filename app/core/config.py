@@ -1,3 +1,4 @@
+from pathlib import PurePath
 import json
 from functools import lru_cache
 from typing import Literal, Self
@@ -15,7 +16,7 @@ class Settings(BaseSettings):
         alias="APP_ENV",
     )
 
-    app_version: str = Field(default="0.1.0", alias="APP_VERSION")
+    app_version: str = Field(default="0.3.0", alias="APP_VERSION")
     debug: bool = Field(default=True, alias="DEBUG")
 
     api_prefix: str = Field(default="/api/v1", alias="API_PREFIX")
@@ -31,7 +32,7 @@ class Settings(BaseSettings):
         alias="RAG_QUERY_LOG_PATH",
     )
     rag_log_include_question: bool = Field(
-        default=True,
+        default=False,
         alias="RAG_LOG_INCLUDE_QUESTION",
     )
     evaluation_results_path: str = Field(
@@ -40,23 +41,23 @@ class Settings(BaseSettings):
     )
 
     backend_host: str = Field(default="0.0.0.0", alias="BACKEND_HOST")
-    backend_port: int = Field(default=8000, alias="BACKEND_PORT")
+    backend_port: int = Field(default=8000, gt=0, le=65535, alias="BACKEND_PORT")
 
     cors_allowed_origins: str = Field(
-        default="http://localhost:8501,http://localhost:3000,http://localhost:5173",
+        default="http://localhost:3000,http://127.0.0.1:3000",
         alias="CORS_ALLOWED_ORIGINS",
     )
 
-    max_pdf_upload_size_mb: int = Field(default=10, alias="MAX_PDF_UPLOAD_SIZE_MB")
+    max_pdf_upload_size_mb: int = Field(default=10, gt=0, alias="MAX_PDF_UPLOAD_SIZE_MB")
 
-    text_chunk_size_chars: int = Field(default=1200, alias="TEXT_CHUNK_SIZE_CHARS")
-    text_chunk_overlap_chars: int = Field(default=200, alias="TEXT_CHUNK_OVERLAP_CHARS")
+    text_chunk_size_chars: int = Field(default=1200, gt=0, alias="TEXT_CHUNK_SIZE_CHARS")
+    text_chunk_overlap_chars: int = Field(default=200, ge=0, alias="TEXT_CHUNK_OVERLAP_CHARS")
 
     embedding_model_name: str = Field(
         default="sentence-transformers/all-MiniLM-L6-v2",
         alias="EMBEDDING_MODEL_NAME",
     )
-    embedding_batch_size: int = Field(default=32, alias="EMBEDDING_BATCH_SIZE")
+    embedding_batch_size: int = Field(default=32, gt=0, alias="EMBEDDING_BATCH_SIZE")
 
     chroma_persist_directory: str = Field(
         default="data/chroma",
@@ -85,9 +86,14 @@ class Settings(BaseSettings):
         alias="DOCUMENT_STORAGE_DIR",
     )
 
-    search_top_k_default: int = Field(default=5, alias="SEARCH_TOP_K_DEFAULT")
+    search_top_k_default: int = Field(default=5, gt=0, alias="SEARCH_TOP_K_DEFAULT")
 
-    min_retrieval_score: float = Field(default=0.45, alias="MIN_RETRIEVAL_SCORE")
+    min_retrieval_score: float = Field(
+        default=0.45,
+        ge=0.0,
+        le=1.0,
+        alias="MIN_RETRIEVAL_SCORE",
+    )
     rag_candidate_retrieval_floor: float = Field(
         default=0.30,
         ge=0.0,
@@ -131,20 +137,22 @@ class Settings(BaseSettings):
     )
     citation_excerpt_max_chars: int = Field(
         default=450,
+        gt=0,
         alias="CITATION_EXCERPT_MAX_CHARS",
     )
     llm_evidence_max_chars: int = Field(
         default=1200,
+        gt=0,
         alias="LLM_EVIDENCE_MAX_CHARS",
     )
-    max_citation_cards: int = Field(default=5, alias="MAX_CITATION_CARDS")
+    max_citation_cards: int = Field(default=5, gt=0, alias="MAX_CITATION_CARDS")
 
     enable_llm_answer: bool = Field(default=True, alias="ENABLE_LLM_ANSWER")
     llm_provider: Literal["groq", "openai", "none"] = Field(
         default="groq",
         alias="LLM_PROVIDER",
     )
-    llm_max_output_tokens: int = Field(default=700, alias="LLM_MAX_OUTPUT_TOKENS")
+    llm_max_output_tokens: int = Field(default=700, gt=0, alias="LLM_MAX_OUTPUT_TOKENS")
     llm_temperature: float = Field(default=0.1, alias="LLM_TEMPERATURE")
     llm_max_retries: int = Field(
         default=2,
@@ -258,7 +266,47 @@ class Settings(BaseSettings):
                 "LLM_RETRY_BASE_DELAY_SECONDS."
             )
 
+        if not self.api_prefix.startswith("/") or self.api_prefix.endswith("/"):
+            raise ValueError("API_PREFIX must start with '/' and must not end with '/'.")
+
+        if self.text_chunk_overlap_chars >= self.text_chunk_size_chars:
+            raise ValueError(
+                "TEXT_CHUNK_OVERLAP_CHARS must be smaller than TEXT_CHUNK_SIZE_CHARS."
+            )
+
+        self._validate_non_empty_path(self.rag_query_log_path, "RAG_QUERY_LOG_PATH")
+        self._validate_non_empty_path(
+            self.evaluation_results_path,
+            "POLICYGPT_EVAL_RESULTS_PATH",
+        )
+        self._validate_non_empty_path(
+            self.chroma_persist_directory,
+            "CHROMA_PERSIST_DIRECTORY",
+        )
+        self._validate_non_empty_path(self.document_storage_dir, "DOCUMENT_STORAGE_DIR")
+
+        if not self.chroma_collection_name:
+            raise ValueError("CHROMA_COLLECTION_NAME must not be empty.")
+
+        if self.database_url:
+            database_scheme = urlsplit(self.database_url).scheme
+            allowed_schemes = {"postgresql", "postgresql+psycopg"}
+            if self.app_env == "test":
+                allowed_schemes.update({"sqlite", "sqlite+pysqlite"})
+            if database_scheme not in allowed_schemes:
+                raise ValueError("DATABASE_URL must use PostgreSQL with psycopg.")
+
+        # Parse and validate before the CORS middleware is created.
+        self._validated_cors_origins()
+
         return self
+
+    @staticmethod
+    def _validate_non_empty_path(value: str, setting_name: str) -> None:
+        if not value or any(character in value for character in ("\x00", "\r", "\n")):
+            raise ValueError(f"{setting_name} must be a non-empty safe path.")
+        if str(PurePath(value)) in {"", "."}:
+            raise ValueError(f"{setting_name} must identify a file or directory.")
 
     @property
     def safe_database_config(self) -> dict[str, str | int | bool | None]:
@@ -266,7 +314,6 @@ class Settings(BaseSettings):
         parsed = urlsplit(self.database_url or "")
         return {
             "driver": parsed.scheme or None,
-            "host": parsed.hostname or None,
             "pool_size": self.database_pool_size,
             "max_overflow": self.database_max_overflow,
             "pool_timeout_seconds": self.database_pool_timeout_seconds,
@@ -275,6 +322,9 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
+        return self._validated_cors_origins()
+
+    def _validated_cors_origins(self) -> list[str]:
         value = self.cors_allowed_origins.strip()
 
         if not value:
@@ -286,9 +336,29 @@ class Settings(BaseSettings):
             if not isinstance(parsed, list):
                 raise ValueError("CORS_ALLOWED_ORIGINS must be a list.")
 
-            return [str(origin).strip() for origin in parsed if str(origin).strip()]
+            origins = [str(origin).strip() for origin in parsed if str(origin).strip()]
+        else:
+            origins = [origin.strip() for origin in value.split(",") if origin.strip()]
 
-        return [origin.strip() for origin in value.split(",") if origin.strip()]
+        normalized: list[str] = []
+        for origin in origins:
+            if origin == "*":
+                raise ValueError("CORS_ALLOWED_ORIGINS cannot contain '*'.")
+            parsed_origin = urlsplit(origin)
+            if (
+                parsed_origin.scheme not in {"http", "https"}
+                or not parsed_origin.netloc
+                or parsed_origin.username
+                or parsed_origin.password
+                or parsed_origin.path not in {"", "/"}
+                or parsed_origin.query
+                or parsed_origin.fragment
+            ):
+                raise ValueError("CORS_ALLOWED_ORIGINS contains a malformed origin.")
+            clean_origin = f"{parsed_origin.scheme.lower()}://{parsed_origin.netloc.lower()}"
+            if clean_origin not in normalized:
+                normalized.append(clean_origin)
+        return normalized
 
     @property
     def max_pdf_upload_size_bytes(self) -> int:

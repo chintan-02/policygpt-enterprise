@@ -5,7 +5,6 @@ import type {
   BackendHealthPayload,
   FrontendHealthResponse,
 } from "@/lib/api/types";
-import { ServerEnvironmentError } from "@/lib/environment";
 
 const DEFAULT_SERVICE_NAME = "PolicyGPT Enterprise";
 
@@ -28,8 +27,8 @@ export async function getBackendHealth(): Promise<FrontendHealthResponse> {
 
     const payload = (await response.json()) as BackendHealthPayload;
     const backendStatus = safeText(payload.status)?.toLowerCase();
-    const serviceName = safeText(payload.app?.name) ?? DEFAULT_SERVICE_NAME;
-    const environment = safeText(payload.app?.environment);
+    const serviceName = safeText(payload.service) ?? DEFAULT_SERVICE_NAME;
+    const environment = safeText(payload.environment);
 
     if (["healthy", "ok", "operational"].includes(backendStatus ?? "")) {
       return {
@@ -48,11 +47,7 @@ export async function getBackendHealth(): Promise<FrontendHealthResponse> {
       environment,
       message: "The backend is reachable, but it reported a non-operational state.",
     };
-  } catch (error) {
-    if (error instanceof ServerEnvironmentError) {
-      throw error;
-    }
-
+  } catch {
     return {
       status: "unavailable",
       backendReachable: false,

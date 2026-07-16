@@ -1,169 +1,101 @@
-# PolicyGPT Enterprise frontend
+# PolicyGPT Next.js product
 
-PolicyGPT Enterprise — Evidence Intelligence Console is the product interface for a governed document-intelligence system that answers enterprise policy questions only when supporting evidence is available.
+This directory contains the production frontend for PolicyGPT Enterprise: a Next.js 16 / React 19 application covering Documents, Ask, Evaluation, and System workflows.
 
-> Ask a policy question. Verify the answer. Trace every claim.
+It is not a static mock and it does not connect to FastAPI from browser code. Server Components and Route Handlers form a Backend-for-Frontend (BFF) that owns the upstream URL, bounded timeouts, no-store requests, runtime validation, request-ID forwarding, and safe error normalization.
 
-## Technology
+## Runtime architecture
 
-- Next.js 16 App Router and React Server Components
-- React 19 and TypeScript
-- Tailwind CSS v4 with centralized CSS tokens
-- shadcn Base Nova primitives backed by Base UI
-- Lucide icons
-- Geist Sans for interface copy and Geist Mono for traceability metadata
+```text
+browser
+→ Next.js pages and client interactions
+→ /api/* Route Handlers (server-side BFF)
+→ FASTAPI_URL (server-only)
+→ FastAPI evidence API
+```
 
-## Step 15A scope
+`FASTAPI_URL` must never use a `NEXT_PUBLIC_` prefix. Production startup fails safely when it is absent. Browser-safe identity labels use explicit `NEXT_PUBLIC_APP_*` variables.
 
-Step 15A replaces the Documents placeholder with a real PostgreSQL-backed evidence-ingestion product while preserving the Ask and Evaluation workflows. Server components load initial metadata directly through the server-only FastAPI client; browser refreshes, polling, detail reads, and uploads use same-origin BFF routes with runtime validation.
+Console routes are dynamically rendered because live backend state is unavailable during image construction and must not be prerendered into the release image.
 
-The evaluation product separates evidence retrieval, unsupported-answer safety, answer completeness, calibrated confidence, provider availability, and request failures. It never runs the benchmark, invents metrics, or reads backend files from the browser.
+## Product areas
 
-## Environment setup
+- **Documents:** PostgreSQL-backed registry, filename search, status filters, offset pagination, PDF upload, duplicate state, lifecycle polling, and safe detail views.
+- **Ask:** real evidence-gated question flow, supported and unsupported presentations, page provenance, confidence diagnostics, and citation-only provider fallback.
+- **Evaluation:** latest-run overview, cases, confidence, provider reliability, and read-only JSON/CSV downloads.
+- **System:** frontend state, backend liveness, backend readiness, PostgreSQL, Chroma, provider mode, last-checked time, refresh, and controlled degraded/unavailable states.
 
-Copy the example file and adjust local values if necessary:
+## Readiness integration
+
+`GET /api/health` proxies the lightweight FastAPI liveness contract.
+
+`GET /api/ready` calls FastAPI `/api/v1/ready` server-side with a three-second timeout. The response is validated with Zod and normalized into PostgreSQL, Chroma, and answer-provider states. A backend 503 remains a safe public 503; malformed output, timeouts, and configuration failures become controlled unknown/unavailable states. Internal URLs, Compose names, credentials, and backend exception text are never returned.
+
+The System page distinguishes:
+
+- **Operational:** required evidence services and configured generation are available.
+- **Degraded:** PostgreSQL and Chroma are ready while citation-only fallback is active.
+- **Unavailable:** backend readiness cannot be verified or a required dependency is down.
+
+The provider card reports configuration/fallback mode only. It does not make a paid provider request.
+
+## Security headers
+
+`next.config.ts` disables `X-Powered-By` and applies:
+
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- a conservative `Permissions-Policy`
+- `Cross-Origin-Opener-Policy: same-origin`
+
+HSTS is intentionally absent for local HTTP. A strict CSP is deferred until scripts, fonts, uploads, and all current flows can be validated end-to-end.
+
+## Data and error contracts
+
+Generated OpenAPI types live in `src/lib/api/generated.ts`. Runtime boundary validation uses Zod because generated TypeScript types do not validate network data.
+
+BFF routes return user-safe errors and disable caching for live data. They do not forward raw upstream error bodies. The Ask BFF propagates a safe backend request ID when available; the readiness BFF accepts and forwards only a conservative request-ID format.
+
+## Standalone Docker build
+
+The Dockerfile uses dependency, builder, and runtime stages. `output: "standalone"` produces the minimal server bundle. The runtime image uses a non-root `nextjs` user and contains public/static assets plus the standalone server.
+
+Compose sets `FASTAPI_URL=http://backend:8000` only inside the frontend container and gates frontend health on `/api/ready`.
+
+## Local development
 
 ```bash
+npm ci
 cp .env.local.example .env.local
-```
-
-`FASTAPI_URL` is server-only and must never use the `NEXT_PUBLIC_` prefix. Production deployments must set it explicitly.
-
-Start the backend from the repository root:
-
-```bash
-cd ..
-source .venv/bin/activate
-python -m uvicorn app.api.main:app \
-  --reload \
-  --reload-dir app \
-  --host 0.0.0.0 \
-  --port 8000
-```
-
-Start the frontend:
-
-```bash
-cd frontend
 npm run dev
 ```
 
-For the production-like local container path, the repository-root Compose stack
-builds this application with Next.js standalone output and runs it as a non-root
-user. `FASTAPI_URL` remains server-only on the internal Docker network:
+The native development fallback is `http://localhost:8000`; production requires `FASTAPI_URL` explicitly.
+
+## Validation
 
 ```bash
-cd ..
-cp .env.compose.example .env.compose
-docker compose --env-file .env.compose up -d --build
-```
-
-See [the Docker Compose runbook](../docs/docker-compose.md) for configuration,
-health checks, persistence, and recovery procedures.
-
-## Route map
-
-| Route | Product state |
-| --- | --- |
-| `/` | Overview with live backend health |
-| `/documents` | Persistent registry, filename search, status filters, pagination, and one-PDF upload |
-| `/documents/[documentId]` | Safe metadata, indexing identifiers, and ingestion lifecycle |
-| `/ask` | Live citation-backed Ask workspace |
-| `/evaluations/overview` | Real-data quality outcomes and production gates |
-| `/evaluations/cases` | Filterable TanStack case table and URL-selected detail drawer |
-| `/evaluations/confidence` | Calibrated confidence and guardrail interpretation |
-| `/evaluations/provider` | Generation availability and citation-only fallback diagnostics |
-| `/evaluations/runs/latest` | Latest run metadata and JSON/CSV downloads |
-| `/system` | Live health, architecture, and capability boundaries |
-| `/api/health` | Safe Next.js health BFF response |
-| `/api/ask` | Validated same-origin Ask BFF endpoint |
-| `/api/documents` | Validated document-list BFF endpoint |
-| `/api/documents/upload` | Multipart one-PDF upload BFF endpoint |
-| `/api/documents/[documentId]` | Safe document-detail BFF endpoint |
-| `/api/documents/[documentId]/status` | Compact processing-status BFF endpoint |
-| `/api/evaluations/latest` | Safe latest-evaluation JSON BFF/download |
-| `/api/evaluations/latest.csv` | Preserved latest-evaluation CSV BFF/download |
-
-`/evaluations` redirects to `/evaluations/overview`. Evaluation navigation uses real URLs, so every route can load directly.
-
-## Evaluation data flow
-
-Generate and validate artifacts from the repository root:
-
-```bash
-python eval/validate_dataset.py
-python eval/run_eval.py --request-delay-seconds 5
-```
-
-FastAPI exposes the configured, repository-contained artifact through:
-
-- `GET /api/v1/evaluations/latest`
-- `GET /api/v1/evaluations/latest.csv`
-
-The JSON summary remains the source of truth for official aggregate metrics. Frontend selectors derive only presentation counts, diagnostic categories, provider availability, filters, and chart groupings. Generated JSON/CSV artifacts are ignored by Git and should be regenerated per environment.
-
-When fewer cases are present than the available benchmark dataset, the UI labels the artifact a diagnostic run. Runs with fewer than three cases show compact case diagnostics instead of misleading distribution charts. Citation-only provider fallback is amber and does not reduce retrieval or safety gates when their structured outcomes passed.
-
-Confidence is calibrated from retrieval strength, question coverage, evidence separation, numeric consistency, and scope guardrails. It is not an LLM self-rating, and raw retrieval scores remain decimals rather than percentages.
-
-The Streamlit evaluation dashboard remains the internal QA console. Persistent PostgreSQL evaluation history is intentionally pending.
-
-## Design-system rules
-
-- No gradients, glow, glassmorphism, purple, chatbot bubbles, or decorative AI motifs.
-- Color, spacing, radius, and motion values are centralized in `src/styles/tokens.css`.
-- White, border-led surfaces sit on the `#F6F8FB` application background.
-- Geist Mono and tabular numerals are reserved for numeric and traceability data.
-- State always includes readable text; color is never the only signal.
-- Retrieval similarity remains a raw decimal and is never converted into a percentage.
-- The provenance rail is the signature source-traceability pattern.
-
-## Ask request flow
-
-1. The browser validates a non-empty question up to 2,000 characters.
-2. `POST /api/ask` applies the same validation, uses a 60-second upstream timeout, and sends only the question plus the backend default retrieval count.
-3. FastAPI retrieves and calibrates evidence, then returns a structured supported, unsupported, or provider-fallback response.
-4. A supported answer is presented only when at least one citation is present. Retrieval scores remain raw decimals; only the calibrated confidence score is displayed as a percentage.
-
-Ask searches all documents currently indexed in the evidence store. The Documents product manages ingestion metadata, but document-scoped selection and filtering remain intentionally unavailable in Ask.
-
-## Documents data flow
-
-`/documents` reads PostgreSQL-backed metadata with a fixed backend page size of 20. Filename search, `ready`/`processing`/`failed` filters, and offset pagination are represented in the URL so refresh and browser navigation preserve state. One page-level timer polls only while the visible registry contains processing records and pauses when the page is hidden.
-
-The upload sheet accepts one PDF, forwards multipart data through `/api/documents/upload`, and displays indeterminate synchronous indexing state without invented percentages. New uploads refresh the current registry; SHA-256 duplicates are informational and link to the existing UUID without claiming a second index operation.
-
-Document detail routes show safe PostgreSQL metadata, counts, timestamps, Chroma collection, embedding model, and the recorded ingestion lifecycle. The product never renders source paths, SHA-256 values, PDF text, legacy `preview_text`, or `sample_chunks`. Database unavailability is distinct from an empty registry, while existing Chroma-backed Ask remains independent.
-
-Supported responses show the grounded answer, a source/page summary, calibrated evidence confidence, decision reasons, the real citation metadata in the Provenance Rail, and a review disclaimer. Unsupported responses do not show speculative answer text. If evidence is answer-ready while the configured answer provider is unavailable, the workspace shows an amber citation-only fallback and preserves the available evidence.
-
-The Provenance Rail traces each excerpt to its safe document name, page, section, and support state. Retrieval similarity is shown only as a raw decimal inside collapsed engineering details; it is not a probability and is never formatted as a percentage.
-
-## Manual sample questions
-
-With the sample HR policy indexed:
-
-- Supported or citation-only fallback: `What is the remote work equipment allowance, and what is required for reimbursement?`
-- Unsupported: `What severance amount does Alberta law require for an employee with five years of service?`
-
-The unsupported question must not produce external legal advice. Ask is synchronous in Phase 14B; streaming and SSE are explicitly deferred.
-
-## Completed and pending workflows
-
-The backend already supports PDF extraction and indexing, ChromaDB retrieval, grounded generation, page-level citations, calibrated confidence, safety guardrails, observability, evaluation, provider retries, and safe citation-only fallback.
-
-Step 15A adds the responsive Documents registry, real upload, detail route, lifecycle visualization, polling, and controlled service states. Step 16 adds the production Next.js standalone image and the repository-level local Compose stack. Delete, reindex, source download, document-scoped Ask, bulk upload, background workers, persistent evaluation history, streaming, authentication, roles, multi-tenancy, dark mode, and agent behavior remain pending. There is intentionally no authentication in this phase; no production authorization claim is implied.
-
-## Verification
-
-```bash
-npm test
 npm run lint
+npm run test
 npm run build
 ```
 
-Regenerate the frontend contract after an intentional FastAPI schema change while the backend is running:
+The current suite covers runtime schemas, domain adapters, evidence/answer presentation, document state, evaluation selectors, System operational mapping, and readiness BFF normalization. Tests never call a real backend.
+
+Regenerate OpenAPI types after an intentional backend contract change while FastAPI is running:
 
 ```bash
 npx openapi-typescript http://localhost:8000/openapi.json -o src/lib/api/generated.ts
 ```
+
+## Responsive and accessibility principles
+
+- semantic headings, landmarks, tables, lists, labels, and status text
+- keyboard-operable controls and visible focus behavior from the shared design system
+- status communicated with text/icons as well as color
+- responsive registry, details, evidence, and evaluation layouts
+- no invented progress percentages, availability metrics, or provider reachability
+- engineering details remain secondary to outcome and evidence
+
+Authentication, dark mode, chat history, streaming, document-scoped Ask, delete/reindex, and fake analytics are intentionally outside this frontend release.

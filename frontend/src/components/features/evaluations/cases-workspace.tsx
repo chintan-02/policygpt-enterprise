@@ -40,6 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  evaluationCasePresentation,
   filterEvaluationCases,
   selectCaseFromSearch,
   type EvaluationCaseView,
@@ -48,6 +49,7 @@ import {
 } from "@/lib/domain/evaluation";
 import {
   businessLabel,
+  evaluationLabel,
   formatEvaluationLatency,
   formatEvaluationPercent,
   formatEvaluationScore,
@@ -92,6 +94,9 @@ function CaseSection({ title, children }: { title: string; children: React.React
 function CaseDrawer({ evaluationCase, onOpenChange }: { evaluationCase: EvaluationCaseView | null; onOpenChange: (open: boolean) => void }) {
   const breakdown = evaluationCase?.confidence_breakdown;
   const directSupport = evaluationCase?.direct_support ?? breakdown?.direct_support;
+  const presentation = evaluationCase
+    ? evaluationCasePresentation(evaluationCase)
+    : null;
   return (
     <Sheet open={Boolean(evaluationCase)} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full max-w-none gap-0 overflow-y-auto sm:max-w-[620px]">
@@ -104,7 +109,7 @@ function CaseDrawer({ evaluationCase, onOpenChange }: { evaluationCase: Evaluati
             <div className="space-y-5 p-5">
               <CaseSection title="Case summary">
                 <div className="flex flex-wrap gap-2">
-                  <StatusPill status={evaluationCase.case_passed ? "success" : "warning"} label={evaluationCase.case_passed ? "Passed" : "Needs review"} />
+                  {presentation ? <StatusPill status={presentation.overall.status} label={presentation.overall.label} /> : null}
                   <DiagnosticPill diagnostic={evaluationCase.diagnostic} />
                 </div>
               </CaseSection>
@@ -117,6 +122,9 @@ function CaseDrawer({ evaluationCase, onOpenChange }: { evaluationCase: Evaluati
                   <DetailRow label="Answer ready">{evaluationCase.answer_ready ? "Yes" : "No"}</DetailRow>
                   <DetailRow label="Evidence status">{businessLabel(evaluationCase.evidence_status)}</DetailRow>
                   <DetailRow label="Decision correct">{evaluationCase.readiness_correct ? "Yes" : "No"}</DetailRow>
+                  <DetailRow label="Evidence result">{presentation?.evidence.label}</DetailRow>
+                  <DetailRow label="Safety result">{presentation?.safety.label}</DetailRow>
+                  <DetailRow label="Provider result">{presentation?.provider.label}</DetailRow>
                 </dl>
               </CaseSection>
               <CaseSection title="Answer">
@@ -146,10 +154,10 @@ function CaseDrawer({ evaluationCase, onOpenChange }: { evaluationCase: Evaluati
               </CaseSection>
               <CaseSection title="Provider diagnostics">
                 <dl>
-                  <DetailRow label="Provider">{businessLabel(evaluationCase.llm_provider)}</DetailRow>
+                  <DetailRow label="Generation mode">{presentation?.provider.label}</DetailRow>
                   <DetailRow label="Model" mono>{evaluationCase.model_name ?? "N/A"}</DetailRow>
                   <DetailRow label="Citation fallback">{evaluationCase.providerFallbackDetected ? "Used" : "Not used"}</DetailRow>
-                  <DetailRow label="Generation status">{evaluationCase.generation_error_type ? businessLabel(evaluationCase.generation_error_type) : evaluationCase.providerFallbackDetected ? "Provider fallback" : "Completed"}</DetailRow>
+                  <DetailRow label="Generation status">{evaluationCase.generation_error_type ? evaluationLabel(evaluationCase.generation_error_type) : evaluationCase.providerFallbackDetected ? "Provider unavailable — citation-only fallback" : "Completed"}</DetailRow>
                 </dl>
               </CaseSection>
               <EngineeringPanel title="Engineering details">
@@ -219,11 +227,12 @@ export function CasesWorkspace({ data }: { data: EvaluationViewModel }) {
     { id: "difficulty", accessorKey: "difficulty", header: "Difficulty", cell: ({ row }) => businessLabel(row.original.difficulty) },
     { id: "expected", accessorFn: (row) => row.should_answer, header: "Expected behavior", cell: ({ row }) => row.original.should_answer ? "Answer" : "Safe fallback" },
     { id: "diagnostic", accessorKey: "diagnostic", header: "Diagnostic", cell: ({ row }) => <DiagnosticPill diagnostic={row.original.diagnostic} /> },
-    { id: "evidence", accessorKey: "evidence_status", header: "Evidence", cell: ({ row }) => businessLabel(row.original.evidence_status) },
+    { id: "evidence", accessorKey: "evidence_status", header: "Evidence", cell: ({ row }) => evaluationCasePresentation(row.original).evidence.label },
+    { id: "safety", header: "Safety", cell: ({ row }) => evaluationCasePresentation(row.original).safety.label },
     { id: "confidence", accessorKey: "confidence_score", header: "Confidence", cell: ({ row }) => <span className="font-metric">{formatEvaluationPercent(row.original.confidence_score)}</span> },
-    { id: "provider", accessorKey: "llm_provider", header: "Provider", cell: ({ row }) => businessLabel(row.original.llm_provider) },
+    { id: "provider", accessorKey: "llm_provider", header: "Generation mode", cell: ({ row }) => <span title={row.original.providerFallbackDetected ? "Evidence passed, but a generated answer was unavailable." : undefined}>{row.original.providerFallbackDetected ? "Citation-only" : evaluationCasePresentation(row.original).provider.label}</span> },
     { id: "latency", accessorKey: "latency_ms", header: "Latency", cell: ({ row }) => <span className="font-metric">{formatEvaluationLatency(row.original.latency_ms)}</span> },
-    { id: "result", accessorFn: (row) => row.case_passed, header: "Result", cell: ({ row }) => <StatusPill compact status={row.original.case_passed ? "success" : "warning"} label={row.original.case_passed ? "Passed" : "Review"} /> },
+    { id: "result", accessorFn: (row) => row.case_passed, header: "Result", cell: ({ row }) => { const result = evaluationCasePresentation(row.original).overall; return <StatusPill compact status={result.status} label={result.label} />; } },
   ];
 
   // TanStack Table intentionally returns stateful functions that the React Compiler does not memoize.
@@ -232,7 +241,7 @@ export function CasesWorkspace({ data }: { data: EvaluationViewModel }) {
   const primaryOptions = {
     status: [{ value: "all", label: "All statuses" }, { value: "review", label: "Needs review" }, { value: "passed", label: "Passed" }],
     support: [{ value: "all", label: "All support types" }, { value: "supported", label: "Supported" }, { value: "unsupported", label: "Unsupported" }],
-    diagnostic: [{ value: "all", label: "All diagnostics" }, ...[...new Set(data.results.map((item) => item.diagnostic))].sort().map((value) => ({ value, label: businessLabel(value) }))],
+    diagnostic: [{ value: "all", label: "All diagnostics" }, ...[...new Set(data.results.map((item) => item.diagnostic))].sort().map((value) => ({ value, label: evaluationLabel(value) }))],
     category: [{ value: "all", label: "All categories" }, ...unique(data.results, "category").map((value) => ({ value, label: businessLabel(value) }))],
   };
   const booleanOptions = [{ value: "all", label: "All" }, { value: "true", label: "Yes" }, { value: "false", label: "No" }];
@@ -288,7 +297,7 @@ export function CasesWorkspace({ data }: { data: EvaluationViewModel }) {
       </div>
 
       <div className="mt-4 space-y-3 lg:hidden">
-        {filtered.map((item) => <button key={item.id} type="button" onClick={() => openCase(item.id)} className="w-full rounded-xl border border-neutral-200 bg-white p-4 text-left focus-visible:ring-2 focus-visible:ring-teal-700"><div className="flex items-start justify-between gap-3"><span className="font-metric text-xs text-neutral-500">{item.id}</span><StatusPill compact status={item.case_passed ? "success" : "warning"} label={item.case_passed ? "Passed" : "Review"} /></div><div className="mt-2 text-sm leading-5 font-medium text-neutral-900">{item.question}</div><div className="mt-3"><DiagnosticPill diagnostic={item.diagnostic} /></div></button>)}
+        {filtered.map((item) => { const result = evaluationCasePresentation(item).overall; return <button key={item.id} type="button" onClick={() => openCase(item.id)} className="w-full rounded-xl border border-neutral-200 bg-white p-4 text-left focus-visible:ring-2 focus-visible:ring-teal-700"><div className="flex items-start justify-between gap-3"><span className="font-metric text-xs text-neutral-500">{item.id}</span><StatusPill compact status={result.status} label={result.label} /></div><div className="mt-2 text-sm leading-5 font-medium text-neutral-900">{item.question}</div><div className="mt-3"><DiagnosticPill diagnostic={item.diagnostic} /></div></button>; })}
       </div>
 
       <CaseDrawer evaluationCase={selected} onOpenChange={(open) => { if (!open) updateParam("case", ""); }} />
