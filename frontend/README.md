@@ -13,11 +13,11 @@ PolicyGPT Enterprise — Evidence Intelligence Console is the product interface 
 - Lucide icons
 - Geist Sans for interface copy and Geist Mono for traceability metadata
 
-## Phase 14B scope
+## Phase 14C scope
 
-This phase connects the real Ask PolicyGPT vertical slice to the existing FastAPI retrieval and answer pipeline. The browser calls the same-origin `POST /api/ask` route, which validates the request and forwards it server-side to `POST /api/v1/documents/ask`.
+Phase 14C adds a production-facing, read-only evaluation product while preserving the Phase 14B Ask workflow. Evaluation pages read the latest generated artifact through FastAPI and server-only Next.js adapters; browser downloads use same-origin BFF routes.
 
-The Ask workspace presents supported answers with citations, unsupported outcomes, provider fallback, request failures, and invalid responses as distinct states. It does not infer state from answer text.
+The evaluation product separates evidence retrieval, unsupported-answer safety, answer completeness, calibrated confidence, provider availability, and request failures. It never runs the benchmark, invents metrics, or reads backend files from the browser.
 
 ## Environment setup
 
@@ -50,21 +50,45 @@ npm run dev
 
 ## Route map
 
-| Route | Phase 14B state |
+| Route | Phase 14C state |
 | --- | --- |
 | `/` | Overview with live backend health |
 | `/documents` | Honest persistence placeholder |
 | `/ask` | Live citation-backed Ask workspace |
-| `/evaluations/overview` | Evaluation overview placeholder |
-| `/evaluations/cases` | Case inspection placeholder |
-| `/evaluations/confidence` | Confidence calibration placeholder |
-| `/evaluations/provider` | Provider reliability placeholder |
-| `/evaluations/runs/latest` | Latest-run placeholder |
+| `/evaluations/overview` | Real-data quality outcomes and production gates |
+| `/evaluations/cases` | Filterable TanStack case table and URL-selected detail drawer |
+| `/evaluations/confidence` | Calibrated confidence and guardrail interpretation |
+| `/evaluations/provider` | Generation availability and citation-only fallback diagnostics |
+| `/evaluations/runs/latest` | Latest run metadata and JSON/CSV downloads |
 | `/system` | Live health, architecture, and capability boundaries |
 | `/api/health` | Safe Next.js health BFF response |
 | `/api/ask` | Validated same-origin Ask BFF endpoint |
+| `/api/evaluations/latest` | Safe latest-evaluation JSON BFF/download |
+| `/api/evaluations/latest.csv` | Preserved latest-evaluation CSV BFF/download |
 
 `/evaluations` redirects to `/evaluations/overview`. Evaluation navigation uses real URLs, so every route can load directly.
+
+## Evaluation data flow
+
+Generate and validate artifacts from the repository root:
+
+```bash
+python eval/validate_dataset.py
+python eval/run_eval.py --request-delay-seconds 5
+```
+
+FastAPI exposes the configured, repository-contained artifact through:
+
+- `GET /api/v1/evaluations/latest`
+- `GET /api/v1/evaluations/latest.csv`
+
+The JSON summary remains the source of truth for official aggregate metrics. Frontend selectors derive only presentation counts, diagnostic categories, provider availability, filters, and chart groupings. Generated JSON/CSV artifacts are ignored by Git and should be regenerated per environment.
+
+When fewer cases are present than the available benchmark dataset, the UI labels the artifact a diagnostic run. Runs with fewer than three cases show compact case diagnostics instead of misleading distribution charts. Citation-only provider fallback is amber and does not reduce retrieval or safety gates when their structured outcomes passed.
+
+Confidence is calibrated from retrieval strength, question coverage, evidence separation, numeric consistency, and scope guardrails. It is not an LLM self-rating, and raw retrieval scores remain decimals rather than percentages.
+
+The Streamlit evaluation dashboard remains the internal QA console. Persistent PostgreSQL evaluation history is intentionally pending.
 
 ## Design-system rules
 
@@ -102,7 +126,7 @@ The unsupported question must not produce external legal advice. Ask is synchron
 
 The backend already supports PDF extraction and indexing, ChromaDB retrieval, grounded generation, page-level citations, calibrated confidence, safety guardrails, observability, evaluation, provider retries, and safe citation-only fallback.
 
-Phase 14B does not add uploads, document persistence, evaluation reporting, streaming, PostgreSQL, authentication, roles, multi-tenancy, dark mode, or agent behavior. There is intentionally no authentication in this phase; no production authorization claim is implied.
+Phase 14C does not add uploads, document persistence, persistent evaluation history, streaming, PostgreSQL, authentication, roles, multi-tenancy, dark mode, or agent behavior. There is intentionally no authentication in this phase; no production authorization claim is implied.
 
 ## Verification
 
@@ -112,10 +136,8 @@ npm run lint
 npm run build
 ```
 
-Regenerate the frontend contract after an intentional FastAPI schema change:
+Regenerate the frontend contract after an intentional FastAPI schema change while the backend is running:
 
 ```bash
-cd ..
-python scripts/export_openapi.py
-npx openapi-typescript openapi.json -o frontend/src/lib/api/generated.ts
+npx openapi-typescript http://localhost:8000/openapi.json -o src/lib/api/generated.ts
 ```

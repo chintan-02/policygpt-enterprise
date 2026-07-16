@@ -10,7 +10,7 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 
 ## Project Status
 
-**Current phase:** Phase 2 — RAG quality and observability
+**Current phase:** Phase 14C — Next.js evaluation product
 
 ### Completed
 
@@ -37,12 +37,13 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 * Verified RAG evaluation dataset and repeatable runner
 * Explainable confidence calibration and safety guardrails
 * Read-only Streamlit RAG Evaluation Dashboard
+* Read-only Next.js evaluation product with overview, cases, confidence,
+  provider reliability, and latest-run downloads
 
 ### Planned Later
 
-* PostgreSQL metadata storage
+* PostgreSQL metadata and persistent evaluation history
 * Docker Compose
-* Logging dashboard
 * Multi-document comparison
 * Compliance report generation
 * Cloud deployment

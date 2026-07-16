@@ -24,7 +24,7 @@ const availableCapabilities = [
 
 const pendingCapabilities = [
   "Persistent document library",
-  "Persisted evaluation reporting",
+  "Persistent PostgreSQL evaluation history",
   "Authentication, roles, and multi-tenant controls",
 ];
 
@@ -50,7 +50,7 @@ export default async function SystemPage() {
           <div className="font-metric mt-4 text-2xl font-semibold text-neutral-900">
             {app.appVersion}
           </div>
-          <p className="mt-3 text-sm text-neutral-500">Phase 14B Ask vertical slice</p>
+          <p className="mt-3 text-sm text-neutral-500">Phase 14C evaluation product</p>
         </QualityCard>
         <QualityCard tier="secondary" label="Environment">
           <div className="font-metric mt-4 text-2xl font-semibold text-neutral-900">

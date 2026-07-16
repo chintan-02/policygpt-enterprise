@@ -33,6 +33,10 @@ class Settings(BaseSettings):
         default=True,
         alias="RAG_LOG_INCLUDE_QUESTION",
     )
+    evaluation_results_path: str = Field(
+        default="eval/results/latest_eval_results.json",
+        alias="POLICYGPT_EVAL_RESULTS_PATH",
+    )
 
     backend_host: str = Field(default="0.0.0.0", alias="BACKEND_HOST")
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
@@ -167,6 +171,7 @@ class Settings(BaseSettings):
         "api_prefix",
         "log_level",
         "rag_query_log_path",
+        "evaluation_results_path",
         "backend_host",
         "cors_allowed_origins",
         "embedding_model_name",

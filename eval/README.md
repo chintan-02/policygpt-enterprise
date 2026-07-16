@@ -248,6 +248,32 @@ If repeated citation cards share the same filename, page, chunk index, and
 excerpt, the runner records their count and prints a duplicate-citation warning.
 This warning does not fail a case and never triggers an automatic ChromaDB reset.
 
+## Next.js evaluation product
+
+Phase 14C exposes the latest generated artifacts through read-only FastAPI
+endpoints:
+
+```text
+GET /api/v1/evaluations/latest
+GET /api/v1/evaluations/latest.csv
+```
+
+The Next.js product routes are `/evaluations/overview`, `/evaluations/cases`,
+`/evaluations/confidence`, `/evaluations/provider`, and
+`/evaluations/runs/latest`. Browser downloads use same-origin Next.js routes;
+the frontend never reads the backend filesystem or starts the evaluator.
+
+The JSON `summary` remains authoritative. The product derives presentation
+groupings and primary diagnostic categories without recalculating official
+metrics. Partial artifacts are labeled diagnostic runs, and distributions are
+suppressed when fewer than three cases are present. Provider citation-only
+fallback is reported independently from evidence retrieval and unsupported
+answer safety.
+
+Confidence describes calibrated evidence support, not an LLM self-rating.
+The Streamlit evaluation dashboard remains the internal QA console. Persistent
+PostgreSQL evaluation history remains pending.
+
 ## Limitations
 
 - This small benchmark covers one fictional handbook and is not statistically

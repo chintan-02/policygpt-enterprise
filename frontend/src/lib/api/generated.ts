@@ -95,6 +95,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evaluations/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Latest Evaluation */
+        get: operations["get_latest_evaluation_api_v1_evaluations_latest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evaluations/latest.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Latest Evaluation Csv */
+        get: operations["download_latest_evaluation_csv_api_v1_evaluations_latest_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -354,6 +388,252 @@ export interface components {
             /** Score */
             score: number;
         };
+        /** EvaluationArtifactMetadata */
+        EvaluationArtifactMetadata: {
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Question Count */
+            question_count: number;
+            /** Benchmark Question Count */
+            benchmark_question_count?: number | null;
+            /** Is Partial */
+            is_partial: boolean;
+        };
+        /** EvaluationArtifactResponse */
+        EvaluationArtifactResponse: {
+            artifact: components["schemas"]["EvaluationArtifactMetadata"];
+            run: components["schemas"]["EvaluationRunMetadata"];
+            summary: components["schemas"]["EvaluationSummary"];
+            /** Results */
+            results: components["schemas"]["EvaluationCase"][];
+        };
+        /** EvaluationBackendHealth */
+        EvaluationBackendHealth: {
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** EvaluationCase */
+        EvaluationCase: {
+            /** Id */
+            id: string;
+            /** Question */
+            question: string;
+            /** Category */
+            category: string;
+            /** Difficulty */
+            difficulty: string;
+            /** Evaluation Focus */
+            evaluation_focus?: string[];
+            /** Should Answer */
+            should_answer: boolean;
+            /** Answer Ready */
+            answer_ready: boolean;
+            /** Readiness Correct */
+            readiness_correct: boolean;
+            /** Evidence Status */
+            evidence_status: string;
+            /** Confidence Score */
+            confidence_score: number;
+            confidence_breakdown?: components["schemas"]["EvaluationConfidenceBreakdown"] | null;
+            /** Answerability Score */
+            answerability_score?: number | null;
+            /** Top Retrieval Score */
+            top_retrieval_score?: number | null;
+            /** Average Retrieval Score */
+            average_retrieval_score?: number | null;
+            /** Retrieval Margin */
+            retrieval_margin?: number | null;
+            /** Lexical Coverage */
+            lexical_coverage?: number | null;
+            /** Top Chunk Lexical Coverage */
+            top_chunk_lexical_coverage?: number | null;
+            /** Numeric Consistency */
+            numeric_consistency?: number | null;
+            /**
+             * Numeric Mismatch
+             * @default false
+             */
+            numeric_mismatch: boolean;
+            /**
+             * Scope Risk
+             * @default false
+             */
+            scope_risk: boolean;
+            /** Direct Support */
+            direct_support?: boolean | null;
+            /** Decision Reasons */
+            decision_reasons?: string[];
+            /** Expected Pages */
+            expected_pages?: number[];
+            /** Retrieved Pages */
+            retrieved_pages?: number[];
+            /** Page Hit */
+            page_hit?: boolean | null;
+            /** Expected Answer Keywords */
+            expected_answer_keywords?: string[];
+            /** Matched Keywords */
+            matched_keywords?: string[];
+            /** Missing Keywords */
+            missing_keywords?: string[];
+            /** Keyword Match Score */
+            keyword_match_score?: number | null;
+            /** Answer */
+            answer: string;
+            /** Fallback Used */
+            fallback_used: boolean;
+            /** Fallback Correct */
+            fallback_correct?: boolean | null;
+            /** Citation Count */
+            citation_count: number;
+            /** Retrieved Filenames */
+            retrieved_filenames?: string[];
+            /** Citation Scores */
+            citation_scores?: number[];
+            /** Top Citation Score */
+            top_citation_score?: number | null;
+            /** Average Citation Score */
+            average_citation_score?: number | null;
+            /**
+             * Duplicate Citation Count
+             * @default 0
+             */
+            duplicate_citation_count: number;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Llm Provider */
+            llm_provider: string;
+            /** Model Name */
+            model_name?: string | null;
+            /** Case Passed */
+            case_passed: boolean;
+            /** Error Type */
+            error_type?: string | null;
+            /** Provider Fallback Used */
+            provider_fallback_used?: boolean | null;
+            /** Generation Attempt Count */
+            generation_attempt_count?: number | null;
+            /** Generation Error Type */
+            generation_error_type?: string | null;
+        };
+        /** EvaluationConfidenceBreakdown */
+        EvaluationConfidenceBreakdown: {
+            /** Answerability Score */
+            answerability_score?: number | null;
+            /** Top Retrieval Score */
+            top_retrieval_score?: number | null;
+            /** Average Retrieval Score */
+            average_retrieval_score?: number | null;
+            /** Retrieval Margin */
+            retrieval_margin?: number | null;
+            /** Lexical Coverage */
+            lexical_coverage?: number | null;
+            /** Top Chunk Lexical Coverage */
+            top_chunk_lexical_coverage?: number | null;
+            /** Numeric Consistency */
+            numeric_consistency?: number | null;
+            /**
+             * Numeric Mismatch
+             * @default false
+             */
+            numeric_mismatch: boolean;
+            /**
+             * Scope Risk
+             * @default false
+             */
+            scope_risk: boolean;
+            /** Direct Support */
+            direct_support?: boolean | null;
+            /** Query Numeric Claims */
+            query_numeric_claims?: string[];
+            /** Evidence Numeric Claims */
+            evidence_numeric_claims?: string[];
+            /** Missing Numeric Claims */
+            missing_numeric_claims?: string[];
+            /** Matched Query Terms */
+            matched_query_terms?: string[];
+            /** Missing Query Terms */
+            missing_query_terms?: string[];
+            /** Decision Reasons */
+            decision_reasons?: string[];
+            /** Scope Risk Reason */
+            scope_risk_reason?: string | null;
+        };
+        /** EvaluationRunMetadata */
+        EvaluationRunMetadata: {
+            /** Run Id */
+            run_id: string;
+            /** Started At Utc */
+            started_at_utc?: string | null;
+            /** Completed At Utc */
+            completed_at_utc?: string | null;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /**
+             * Backend Base Label
+             * @default Configured backend
+             */
+            backend_base_label: string;
+            /** Endpoint */
+            endpoint?: string | null;
+            /** Dataset Path */
+            dataset_path?: string | null;
+            /** Dataset Sha256 */
+            dataset_sha256?: string | null;
+            /** Top K */
+            top_k?: number | null;
+            /** Timeout Seconds */
+            timeout_seconds?: number | null;
+            /** Request Delay Seconds */
+            request_delay_seconds?: number | null;
+            /** Question Count */
+            question_count: number;
+            backend_health?: components["schemas"]["EvaluationBackendHealth"] | null;
+            /**
+             * Duplicate Citation Warning
+             * @default false
+             */
+            duplicate_citation_warning: boolean;
+            /** Question Id */
+            question_id?: string | null;
+            /** Limit */
+            limit?: number | null;
+        };
+        /** EvaluationSummary */
+        EvaluationSummary: {
+            /** Total Questions */
+            total_questions: number;
+            /** Supported Questions */
+            supported_questions: number;
+            /** Unsupported Questions */
+            unsupported_questions: number;
+            /** Passed Questions */
+            passed_questions: number;
+            /** Failed Questions Count */
+            failed_questions_count: number;
+            /** Request Error Count */
+            request_error_count: number;
+            /** Answer Readiness Accuracy */
+            answer_readiness_accuracy: number;
+            /** Fallback Accuracy */
+            fallback_accuracy: number;
+            /** Retrieval Page Hit Rate */
+            retrieval_page_hit_rate: number;
+            /** Keyword Match Rate */
+            keyword_match_rate: number;
+            /** Average Confidence */
+            average_confidence: number;
+            /** Average Supported Confidence */
+            average_supported_confidence: number;
+            /** Average Latency Ms */
+            average_latency_ms: number;
+            /** Average Citation Count */
+            average_citation_count: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -532,6 +812,44 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_latest_evaluation_api_v1_evaluations_latest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationArtifactResponse"];
+                };
+            };
+        };
+    };
+    download_latest_evaluation_csv_api_v1_evaluations_latest_csv_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
