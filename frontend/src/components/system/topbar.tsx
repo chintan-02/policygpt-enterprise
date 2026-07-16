@@ -12,7 +12,7 @@ export function Topbar({
   app: PublicAppEnvironment;
 }) {
   return (
-    <header className="sticky top-0 z-20 h-16 border-b border-neutral-200 bg-white/95">
+    <header className="sticky top-0 z-20 h-16 border-b border-neutral-200 bg-white">
       <div className="flex h-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-7">
         <div className="flex min-w-0 items-center gap-3">
           <div className="xl:hidden">

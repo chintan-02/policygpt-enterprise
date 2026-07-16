@@ -10,7 +10,7 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 
 ## Project Status
 
-**Current phase:** Step 15 — PostgreSQL document metadata
+**Current phase:** Step 15A — Real Documents product
 
 ### Completed
 
@@ -42,10 +42,13 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 * Durable PostgreSQL document metadata with Alembic migrations
 * Atomic local source-PDF storage and SHA-256 duplicate prevention
 * Read-only document list, detail, and lifecycle-status APIs
+* Real Next.js Documents registry, PDF upload, and document detail routes
+* URL-backed filename search, status filters, and backend pagination
+* Truthful ingestion lifecycle, duplicate, processing, failure, and outage states
 
 ### Planned Later
 
-* Step 15A Documents frontend and persistent evaluation history
+* Persistent evaluation history
 * Docker Compose
 * Multi-document comparison
 * Compliance report generation
@@ -800,7 +803,6 @@ Current limitations:
 
 * no user authentication
 * no role-based access control
-* no Documents frontend yet (Step 15A)
 * no document deletion endpoint yet
 * no multi-document comparison yet
 * no OCR for scanned PDFs yet
