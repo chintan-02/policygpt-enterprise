@@ -48,6 +48,19 @@ cd frontend
 npm run dev
 ```
 
+For the production-like local container path, the repository-root Compose stack
+builds this application with Next.js standalone output and runs it as a non-root
+user. `FASTAPI_URL` remains server-only on the internal Docker network:
+
+```bash
+cd ..
+cp .env.compose.example .env.compose
+docker compose --env-file .env.compose up -d --build
+```
+
+See [the Docker Compose runbook](../docs/docker-compose.md) for configuration,
+health checks, persistence, and recovery procedures.
+
 ## Route map
 
 | Route | Product state |
@@ -139,7 +152,7 @@ The unsupported question must not produce external legal advice. Ask is synchron
 
 The backend already supports PDF extraction and indexing, ChromaDB retrieval, grounded generation, page-level citations, calibrated confidence, safety guardrails, observability, evaluation, provider retries, and safe citation-only fallback.
 
-Step 15A adds the responsive Documents registry, real upload, detail route, lifecycle visualization, polling, and controlled service states. Delete, reindex, source download, document-scoped Ask, bulk upload, background workers, persistent evaluation history, streaming, Docker Compose, authentication, roles, multi-tenancy, dark mode, and agent behavior remain pending. There is intentionally no authentication in this phase; no production authorization claim is implied.
+Step 15A adds the responsive Documents registry, real upload, detail route, lifecycle visualization, polling, and controlled service states. Step 16 adds the production Next.js standalone image and the repository-level local Compose stack. Delete, reindex, source download, document-scoped Ask, bulk upload, background workers, persistent evaluation history, streaming, authentication, roles, multi-tenancy, dark mode, and agent behavior remain pending. There is intentionally no authentication in this phase; no production authorization claim is implied.
 
 ## Verification
 

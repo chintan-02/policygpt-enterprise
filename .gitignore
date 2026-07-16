@@ -12,6 +12,7 @@ env/
 
 # Environment files
 .env
+.env.compose
 
 # IDE
 .vscode/

@@ -12,9 +12,9 @@ chunks, embeddings, prompts, or evidence excerpts.
 
 ## Local configuration and startup
 
-Set a non-placeholder `DATABASE_URL` in `.env`. The standalone development
-container is expected to be named `policygpt-postgres`; Docker Compose remains
-Step 16.
+For native development, set a non-placeholder `DATABASE_URL` in `.env`. If the
+standalone development container is named `policygpt-postgres`, start it before
+running migrations:
 
 ```bash
 docker start policygpt-postgres
@@ -39,6 +39,13 @@ alembic upgrade head
 
 FastAPI never creates tables automatically; Alembic is the production schema
 source of truth.
+
+For the complete local deployment, use the repository-root Compose stack. Its
+one-shot `migrate` service applies Alembic only after PostgreSQL is healthy and
+must succeed before FastAPI starts. The stack's database URL is internal and
+uses the `postgres` service name rather than `localhost`. See
+[Docker Compose local deployment](docker-compose.md), including the safe process
+for reusing an existing standalone PostgreSQL named volume without deleting it.
 
 ## Lifecycle and duplicate behavior
 
