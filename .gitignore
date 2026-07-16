@@ -22,6 +22,9 @@ env/
 
 # Logs
 *.log
+logs/*.jsonl
+eval/results/*.json
+eval/results/*.csv
 
 # Python build files
 build/
@@ -31,6 +34,8 @@ dist/
 # Future local storage
 uploads/
 data/
+data/uploads/**
+!data/uploads/.gitkeep
 chroma/
 sample.pdf
 sample.pdf

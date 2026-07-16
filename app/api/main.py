@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 import structlog
 
 from app.api.routes.documents import router as documents_router
+from app.api.routes.evaluations import router as evaluations_router
 from app.api.routes.health import router as health_router
 from app.core.config import get_settings
 from app.core.exceptions import AppException
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
 def register_routes(app: FastAPI) -> None:
     app.include_router(health_router, prefix=settings.api_prefix)
     app.include_router(documents_router, prefix=settings.api_prefix)
+    app.include_router(evaluations_router, prefix=settings.api_prefix)
 
 
 def register_exception_handlers(app: FastAPI) -> None:

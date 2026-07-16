@@ -34,6 +34,10 @@ pages = [
         title="Evidence Explorer",
     ),
     st.Page(
+        str(BASE_DIR / "pages" / "evaluation_dashboard.py"),
+        title="RAG Evaluation",
+    ),
+    st.Page(
         str(BASE_DIR / "pages" / "architecture.py"),
         title="Architecture",
     ),

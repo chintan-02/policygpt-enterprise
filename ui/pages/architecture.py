@@ -106,12 +106,16 @@ Phase 1 — Core RAG MVP
 ✅ Provider-agnostic LLM layer
 ✅ Streamlit Compliance Intelligence Console
 
+Phase 2 — Quality and observability
+✅ Verified RAG evaluation benchmark
+✅ Explainable confidence calibration
+✅ Provider retries and safe citation-only fallback
+✅ RAG evaluation dashboard
+
 Phase 2 — Later
-- Evaluation dashboard
 - PostgreSQL metadata
 - Docker Compose
 - Logging dashboard
-- RAG evaluation
     """,
     language="text",
 )

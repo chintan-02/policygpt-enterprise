@@ -1,15 +1,24 @@
-from fastapi import APIRouter, File, UploadFile
-import structlog
+from uuid import UUID
 
+from fastapi import APIRouter, Depends, File, Query, UploadFile
+import structlog
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db_session
 from app.schemas.document import (
     DocumentAnswerRequest,
     DocumentAnswerResponse,
     DocumentEvidenceRequest,
     DocumentEvidenceResponse,
     DocumentIngestionResponse,
+    DocumentDetailResponse,
+    DocumentListResponse,
+    DocumentStatus,
+    DocumentStatusResponse,
     DocumentSearchRequest,
     DocumentSearchResponse,
 )
+from app.services.document_metadata_service import DocumentMetadataService
 from app.services.document_service import DocumentService
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -21,8 +30,9 @@ document_service = DocumentService()
 @router.post("/upload", response_model=DocumentIngestionResponse)
 async def upload_document(
     file: UploadFile = File(...),
+    session: Session = Depends(get_db_session),
 ) -> DocumentIngestionResponse:
-    result = await document_service.process_pdf_upload(file)
+    result = await document_service.process_pdf_upload(file, session)
 
     logger.info(
         "document_ingested",
@@ -38,6 +48,38 @@ async def upload_document(
     )
 
     return result
+
+
+@router.get("", response_model=DocumentListResponse)
+def list_documents(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    status: DocumentStatus | None = Query(default=None),
+    filename: str | None = Query(default=None, min_length=1, max_length=512),
+    session: Session = Depends(get_db_session),
+) -> DocumentListResponse:
+    return DocumentMetadataService(session).list_documents(
+        limit=limit,
+        offset=offset,
+        status=status.value if status else None,
+        filename=filename.strip() if filename else None,
+    )
+
+
+@router.get("/{document_id}", response_model=DocumentDetailResponse)
+def get_document(
+    document_id: UUID,
+    session: Session = Depends(get_db_session),
+) -> DocumentDetailResponse:
+    return DocumentMetadataService(session).get_detail(str(document_id))
+
+
+@router.get("/{document_id}/status", response_model=DocumentStatusResponse)
+def get_document_status(
+    document_id: UUID,
+    session: Session = Depends(get_db_session),
+) -> DocumentStatusResponse:
+    return DocumentMetadataService(session).get_status(str(document_id))
 
 
 @router.post("/search", response_model=DocumentSearchResponse)

@@ -1,249 +1,63 @@
-# PolicyGPT Enterprise — Evidence-First RAG for Policy & Compliance Documents
+# PolicyGPT Enterprise
 
-<div align="center">
+**PolicyGPT Enterprise** is a production-style Retrieval-Augmented Generation system for HR, policy, SOP, and compliance document intelligence.
 
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Frontend-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
-![ChromaDB](https://img.shields.io/badge/Vector_Store-ChromaDB-FF6446?style=flat-square)
-![SentenceTransformers](https://img.shields.io/badge/Embeddings-SentenceTransformers-FFB000?style=flat-square)
-![Status](https://img.shields.io/badge/Status-Phase_1_MVP-F59E0B?style=flat-square)
+Users upload policy PDFs and ask natural-language questions. The system retrieves document evidence first, checks retrieval confidence, and generates answers only when supporting evidence is available. Responses include citation cards, page-level evidence, confidence scoring, LLM provider visibility, and safe fallback behavior when evidence is weak.
 
-**A production-shaped Retrieval-Augmented Generation platform that retrieves and scores document evidence before answer generation.**
-
-[Portfolio Case Study](https://chintan-patel-ai.netlify.app/case-studies/policygpt)
-
-</div>
-
----
-
-> [!IMPORTANT]
-> PolicyGPT Enterprise is a portfolio and educational document-intelligence project. It is not legal advice, an official compliance decision engine, or a production governance system. Real organizational use would require security review, access control, privacy assessment, evaluation, monitoring, policy-owner approval, and controlled deployment.
-
----
-
-## Product Overview
-
-PolicyGPT Enterprise helps users explore HR policies, SOPs, internal guidance, and compliance documents through an evidence-first RAG workflow.
-
-Users upload a PDF and ask a natural-language question. Before generating an answer, the system:
-
-1. retrieves relevant document chunks
-2. scores the retrieved evidence
-3. applies a configurable threshold
-4. builds page-level citation cards
-5. generates only when supporting evidence is available
-6. returns a safe fallback when evidence is weak or unsupported
-
-```text
-Question
-   ↓
-Semantic Retrieval
-   ↓
-Evidence Scoring
-   ↓
-Threshold Decision
-   ├── Supported → Generate Answer + Citations
-   └── Unsupported → Safe Fallback
-```
-
-This is intentionally different from a generic PDF chatbot. The interface exposes evidence status, confidence, sources, provider information, and fallback behavior so users can inspect how the answer was produced.
+This is not a generic PDF chatbot. It is designed as an enterprise-style **Compliance Intelligence Console** that prioritizes trust, evidence, and safe answer generation.
 
 ---
 
 ## Project Status
 
-**Current phase:** Phase 1 — Core RAG MVP
+**Current phase:** Step 15 — PostgreSQL document metadata
 
-### Implemented
+### Completed
 
-- FastAPI backend with documented REST endpoints
-- PDF validation and upload workflow
-- page-level text extraction with PyMuPDF
-- extracted-text cleaning and common spacing repair
-- page-aware chunking with document metadata
-- local SentenceTransformer embeddings
-- persistent local ChromaDB vector storage
-- semantic search and evidence retrieval
-- configurable retrieval-score threshold
-- evidence-status and confidence calculation
-- duplicate-citation filtering
-- page-level citation cards
-- evidence-gated answer generation
-- Groq answer-generation mode
-- OpenAI answer-generation mode
-- no-LLM evidence-only fallback mode
-- unsupported-question fallback
-- Streamlit Compliance Intelligence Console
-- Evidence Explorer page
-- Architecture page
-- loading, empty, disconnected, and error states
-- safe health response that does not expose API keys
-- fictional sample HR policy for demonstration
-- Dockerfile for container packaging
+* FastAPI backend
+* PDF upload endpoint
+* PDF text extraction with page-level metadata
+* Text cleaning and PDF extraction repair
+* Page-aware chunking with metadata
+* Local embeddings using SentenceTransformers
+* ChromaDB vector storage
+* Semantic retrieval pipeline
+* Evidence scoring and threshold filtering
+* Citation card generation
+* Unsupported-answer fallback
+* Provider-agnostic LLM layer
+* Groq / OpenAI / no-LLM fallback support
+* Streamlit Compliance Intelligence Console
+* Evidence Explorer page
+* Architecture overview page
+* README and demo documentation
+* Clean citation preview formatting
+* Professional empty, loading, and error UI states
+* Backend health endpoint with safe RAG configuration details
+* Verified RAG evaluation dataset and repeatable runner
+* Explainable confidence calibration and safety guardrails
+* Read-only Streamlit RAG Evaluation Dashboard
+* Read-only Next.js evaluation product with overview, cases, confidence,
+  provider reliability, and latest-run downloads
+* Durable PostgreSQL document metadata with Alembic migrations
+* Atomic local source-PDF storage and SHA-256 duplicate prevention
+* Read-only document list, detail, and lifecycle-status APIs
 
-### Planned
+### Planned Later
 
-- formal RAG evaluation and test datasets
-- retrieval and faithfulness metrics
-- confidence analytics dashboard
-- PostgreSQL document metadata storage
-- Docker Compose
-- authentication and role-based access control
-- document deletion and lifecycle management
-- multi-document comparison
-- compliance-summary and report generation
-- latency, retrieval-score, token, and cost analytics
-- production monitoring and observability
-- CI/CD pipeline
-- cloud deployment
-
-> Planned capabilities are roadmap targets and are not presented as completed project experience.
+* Step 15A Documents frontend and persistent evaluation history
+* Docker Compose
+* Multi-document comparison
+* Compliance report generation
+* Cloud deployment
 
 ---
 
-## Why This Project Matters
-
-Many introductory RAG applications follow this pattern:
-
-```text
-Upload PDF
-   ↓
-Retrieve chunks
-   ↓
-Always ask an LLM to answer
-```
-
-That workflow can produce confident responses even when the retrieved evidence is weak.
-
-PolicyGPT follows a safer pattern:
-
-```text
-Retrieve
-   ↓
-Score
-   ↓
-Verify threshold
-   ↓
-Generate only when supported
-   ↓
-Return answer + confidence + citations
-```
-
-When the system cannot find enough supporting evidence, it does not invent policy details. It returns a fallback response and exposes that the evidence was insufficient.
-
-This design is more appropriate for document-intelligence scenarios where answers need to be:
-
-- grounded
-- reviewable
-- source-linked
-- explainable
-- failure-aware
-
----
-
-## Core Capabilities
-
-### Evidence-Gated Generation
-
-The backend does not call the selected LLM blindly.
-
-Before generation, PolicyGPT:
-
-1. embeds the user question
-2. searches ChromaDB for candidate chunks
-3. evaluates retrieval scores
-4. filters evidence below the configured threshold
-5. removes duplicate citations
-6. creates citation cards
-7. calculates evidence status and confidence
-8. allows generation only when evidence is sufficient
-
-If evidence is insufficient, the system skips normal generation and returns a safe fallback.
-
----
-
-### Citation-Backed Answers
-
-Supported answers include citation cards containing:
-
-- document name
-- page number
-- inferred section title
-- readable excerpt
-- retrieval score
-
-This makes the result auditable rather than purely conversational.
-
----
-
-### Evidence Explorer
-
-The Evidence Explorer allows users to inspect retrieval before answer generation.
-
-It displays:
-
-- evidence status
-- confidence score
-- configured threshold
-- retrieval trace
-- candidate citations
-- page and section metadata
-- individual retrieval scores
-
-This helps users understand why the system did or did not allow generation.
-
----
-
-### Provider-Agnostic Answer Layer
-
-PolicyGPT supports three answer modes:
-
-| Mode | Behavior |
-|---|---|
-| Groq | Generates an answer through the configured Groq model |
-| OpenAI | Generates an answer through the configured OpenAI model |
-| No-LLM fallback | Returns available evidence without requiring generation |
-
-The retrieval pipeline is separated from the answer provider. This allows the system to preserve evidence and citations even when generation is disabled or unavailable.
-
----
-
-### Failure-Aware Behavior
-
-The application handles several important states:
-
-- backend unavailable
-- no document uploaded
-- PDF selected but not indexed
-- upload or parsing failure
-- insufficient retrieval evidence
-- provider disabled or misconfigured
-- answer-generation failure
-- no citations returned
-
-The interface communicates these states rather than silently failing or presenting unsupported output.
-
----
-
-### Clean Evidence Presentation
-
-The backend separates longer grounding text from shorter UI excerpts:
-
-```text
-evidence_text → longer context used for answer grounding
-excerpt       → shorter text shown in citation cards
-```
-
-This provides sufficient context to the answer-generation layer while keeping the interface readable.
-
----
-
-## Application Screenshots
+## Screenshots
 
 ### Document Ingestion Console
 
-The dashboard shows backend connectivity, PDF upload, indexing status, page count, chunk count, stored vector count, and collection information.
+The system shows backend connection status, PDF upload, document indexing, page count, chunk count, stored vector count, and ChromaDB collection name.
 
 <img src="screenshots/01-dashboard-upload.png" alt="PolicyGPT document ingestion dashboard" width="900"/>
 
@@ -251,7 +65,7 @@ The dashboard shows backend connectivity, PDF upload, indexing status, page coun
 
 ### Citation-Backed Answer
 
-The system retrieves evidence, verifies the threshold, generates a grounded answer, and returns page-level citation cards.
+PolicyGPT retrieves evidence first, generates an answer only when evidence passes the threshold, and returns citation cards with page-level source information.
 
 <img src="screenshots/02-citation-backed-answer.png" alt="PolicyGPT citation-backed answer with evidence score and citation card" width="900"/>
 
@@ -259,7 +73,7 @@ The system retrieves evidence, verifies the threshold, generates a grounded answ
 
 ### AI Policy and Data Privacy Question
 
-A compliance-style question is answered using evidence from the uploaded policy document.
+The system answers compliance-style questions about confidential data and AI tools using only uploaded policy evidence.
 
 <img src="screenshots/03-ai-policy-answer.png" alt="PolicyGPT AI policy answer with strong evidence and citations" width="900"/>
 
@@ -267,7 +81,7 @@ A compliance-style question is answered using evidence from the uploaded policy 
 
 ### Unsupported Question Fallback
 
-When the uploaded document does not support the question, generation is skipped and a safe fallback is returned.
+When the uploaded document does not contain enough supporting evidence, PolicyGPT skips generation and returns a safe fallback response.
 
 <img src="screenshots/04-unsupported-fallback.png" alt="PolicyGPT unsupported question fallback with no citations" width="900"/>
 
@@ -275,7 +89,7 @@ When the uploaded document does not support the question, generation is skipped 
 
 ### Evidence Explorer
 
-The Evidence Explorer exposes retrieval status, confidence, threshold, trace information, and citation cards before generation.
+The Evidence Explorer exposes the retrieval layer before generation, including evidence status, confidence score, threshold, retrieval trace, and retrieved citation cards.
 
 <img src="screenshots/05-evidence-explorer.png" alt="PolicyGPT evidence explorer with retrieval trace and citation cards" width="900"/>
 
@@ -283,194 +97,366 @@ The Evidence Explorer exposes retrieval status, confidence, threshold, trace inf
 
 ### Architecture Page
 
-The application includes a visual explanation of the complete RAG workflow.
+The architecture page explains the full RAG flow from PDF upload to citation-backed answer generation.
 
 <img src="screenshots/06-architecture-page.png" alt="PolicyGPT architecture page showing RAG system flow" width="900"/>
 
 ---
 
-### FastAPI Documentation
+### FastAPI Backend
 
-The backend exposes documented endpoints for health, ingestion, search, evidence retrieval, and question answering.
+The backend exposes documented API endpoints for health checks, document upload, semantic search, evidence retrieval, and question answering.
 
 <img src="screenshots/07-fastapi-docs.png" alt="PolicyGPT FastAPI Swagger documentation" width="900"/>
 
+
+## Why This Project Matters
+
+Many RAG demos follow a simple pattern:
+
+```text
+Upload PDF
+→ retrieve chunks
+→ ask LLM to answer
+```
+
+That is useful for a prototype, but it is not enough for HR, compliance, SOP, or policy use cases where unsupported answers can create risk.
+
+PolicyGPT Enterprise follows a safer enterprise RAG pattern:
+
+```text
+Question
+→ retrieve evidence
+→ score evidence
+→ apply threshold
+→ generate only if supported
+→ return answer + confidence + citations
+```
+
+If the system cannot find enough supporting evidence, it does not guess. It returns a fallback response.
+
+This makes the project more relevant for real-world document intelligence workflows where answers need to be grounded, auditable, and explainable.
+
 ---
 
-## High-Level Architecture
+## Key Features
+
+### Citation-Backed Answers
+
+Every generated answer is connected to citation cards containing:
+
+* document name
+* page number
+* section title
+* excerpt
+* retrieval score
+
+This makes the answer auditable instead of only conversational.
+
+---
+
+### Evidence-Gated Generation
+
+The backend does not blindly call the LLM.
+
+Before generation, the system:
+
+1. Embeds the user question
+2. Retrieves candidate chunks from ChromaDB
+3. Filters chunks by retrieval score
+4. Builds citation cards
+5. Calculates evidence status and confidence
+6. Allows generation only when evidence is available
+
+If evidence is insufficient, PolicyGPT returns a safe fallback message instead of hallucinating.
+
+---
+
+### Provider-Agnostic LLM Layer
+
+PolicyGPT supports multiple answer-generation modes:
+
+* Groq
+* OpenAI
+* no-LLM fallback mode
+
+This design keeps the project flexible. Groq can be used for fast and low-cost development demos, while OpenAI can be enabled later by changing environment variables.
+
+The retrieval system is independent from the LLM provider.
+
+---
+
+### No-LLM Fallback Mode
+
+If LLM generation is disabled, unavailable, rate-limited, or misconfigured, the system can still return citation evidence safely.
+
+This prevents the UI from breaking during demos and shows production-style failure handling.
+
+---
+
+### Hidden LLM Evidence Text and Clean UI Excerpts
+
+The backend separates long grounding text from short UI display text:
+
+```text
+evidence_text → longer hidden text for LLM grounding
+excerpt       → shorter text for UI citation display
+```
+
+This gives the LLM enough context while keeping citation cards clean and readable for users.
+
+---
+
+### Enterprise-Style Streamlit UI
+
+The frontend is designed as a **Compliance Intelligence Console**, not a chatbot clone.
+
+The UI includes:
+
+* backend connection status
+* document ingestion panel
+* policy question input
+* answer card
+* confidence badge
+* evidence status badge
+* provider badge
+* model badge
+* fallback badge
+* retrieval trace
+* citation cards
+* Evidence Explorer page
+* Architecture page
+
+The goal is to show how the RAG system behaves, not just display an answer.
+
+---
+
+### Production-Style Polish
+
+PolicyGPT includes small but important product-quality details:
+
+* clean citation previews without noisy PDF boilerplate
+* loading spinners during indexing, retrieval, and answer generation
+* clear empty states before document upload
+* clear state when a PDF is selected but not indexed
+* friendly error messages for backend/API failures
+* safe fallback state when no citation evidence is available
+* backend health endpoint showing safe RAG configuration details
+* API keys are never exposed through health checks or UI responses
+
+These details make the project feel closer to an enterprise document intelligence product rather than a simple prototype.
+
+---
+
+## Enterprise UI Design
+
+Most Streamlit AI apps look like this:
+
+```text
+Title
+Textbox
+Button
+Answer
+```
+
+PolicyGPT uses a more structured product-style layout:
+
+```text
+Compliance Intelligence Console
+├── Backend status
+├── Document ingestion
+├── Policy question panel
+├── Evidence-gated answer card
+├── Confidence and provider badges
+├── Retrieval trace
+└── Citation cards
+```
+
+The interface communicates trust signals clearly:
+
+* Is the backend connected?
+* Was the document indexed?
+* Was evidence found?
+* Did evidence pass the threshold?
+* Was LLM generation allowed?
+* Which provider generated the answer?
+* Which document/page supports the answer?
+* Did the system safely fall back?
+
+This makes the demo stronger for AI Engineer, GenAI Developer, and LLM Engineer roles.
+
+---
+
+## Architecture
+
+PolicyGPT Enterprise uses a modular RAG architecture.
+
+```text
+PDF Upload
+→ PyMuPDF text extraction
+→ text cleaning
+→ page-aware chunking
+→ SentenceTransformer embeddings
+→ ChromaDB vector store
+→ semantic retrieval
+→ evidence score filtering
+→ citation card creation
+→ Groq/OpenAI/no-LLM answer generation
+→ Streamlit UI
+```
+
+### High-Level Architecture
 
 ```text
 User
   │
   ▼
-Streamlit Compliance Intelligence Console
+Streamlit Compliance Console
   │
   ▼
 FastAPI Backend
   │
-  ├── PDF Validation
-  ├── PyMuPDF Text Extraction
+  ├── PDF Upload
+  ├── Text Extraction
   ├── Text Cleaning
-  ├── Page-Aware Chunking
-  ├── SentenceTransformer Embeddings
-  ├── ChromaDB Vector Storage
-  ├── Semantic Retrieval
-  ├── Evidence Scoring
-  ├── Threshold Filtering
-  ├── Citation Construction
-  └── Answer Generation
-         ├── Groq
-         ├── OpenAI
-         └── No-LLM Fallback
+  ├── Chunking
+  ├── Embeddings
+  ├── ChromaDB Storage
+  ├── Evidence Retrieval
+  ├── Confidence Scoring
+  ├── Citation Builder
+  └── LLM Answer Generation
+          ├── Groq
+          ├── OpenAI
+          └── No-LLM Fallback
 ```
 
 ---
 
-## Request Flows
+## System Design
 
-### Document Upload
+PolicyGPT is separated into backend services and frontend components.
+
+The backend follows a service-oriented structure. FastAPI route handlers stay thin and delegate business logic to service files.
+
+### Backend Request Flow
+
+#### Document Upload Flow
 
 ```text
-POST /api/v1/documents/upload
-   ↓
-Validate file type and size
-   ↓
-Read PDF bytes
-   ↓
-Extract page-level text
-   ↓
-Clean text and repair spacing
-   ↓
-Infer section titles
-   ↓
-Create overlapping chunks
-   ↓
-Generate embeddings
-   ↓
-Store chunks in ChromaDB
-   ↓
-Return ingestion summary
+POST /documents/upload
+→ validate PDF
+→ read file bytes
+→ extract text with PyMuPDF
+→ clean extracted page text
+→ infer section titles
+→ create chunks with metadata
+→ generate embeddings
+→ store chunks in ChromaDB
+→ return ingestion summary
 ```
 
-### Evidence Retrieval
+#### Evidence Retrieval Flow
 
 ```text
-POST /api/v1/documents/evidence
-   ↓
-Embed user question
-   ↓
-Search ChromaDB
-   ↓
-Apply retrieval threshold
-   ↓
-Remove duplicate citations
-   ↓
-Build citation cards
-   ↓
-Calculate confidence
-   ↓
-Return evidence response
+POST /documents/evidence
+→ embed user query
+→ search ChromaDB
+→ filter results by retrieval score
+→ remove duplicate citations
+→ build citation cards
+→ calculate confidence score
+→ return evidence response
 ```
 
-### Question Answering
+#### Question Answering Flow
 
 ```text
-POST /api/v1/documents/ask
-   ↓
-Retrieve and score evidence
-   ↓
-Check evidence status
-   ├── Insufficient → Return fallback
-   └── Supported
-          ↓
-       Build grounding context
-          ↓
-       Call configured provider
-          ↓
-       Return answer + confidence + citations
+POST /documents/ask
+→ retrieve evidence
+→ check evidence status
+→ if insufficient: return fallback
+→ if supported: build LLM evidence context
+→ call selected provider
+→ return answer + citations + confidence
 ```
 
 ---
 
-## Backend Service Design
+## Backend Service Responsibilities
 
-FastAPI route handlers remain thin and delegate business logic to service classes.
-
-| Service | Responsibility |
-|---|---|
-| `PDFExtractionService` | Extract page-level text from uploaded PDF files |
-| `TextCleaningService` | Clean extracted text and repair common PDF spacing issues |
-| `ChunkingService` | Create chunks while preserving document, page, section, and chunk metadata |
-| `EmbeddingService` | Generate local SentenceTransformer embeddings |
-| `VectorStoreService` | Store and search embeddings in ChromaDB |
-| `RetrievalService` | Retrieve evidence, apply score thresholds, remove duplicates, and create citations |
-| `AnswerGenerationService` | Generate evidence-grounded answers through Groq, OpenAI, or fallback |
-| `DocumentService` | Coordinate ingestion, retrieval, and answer workflows |
+| Service                   | Responsibility                                                             |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `PDFExtractionService`    | Extract page-level text from uploaded PDFs                                 |
+| `TextCleaningService`     | Clean extracted text and repair common PDF spacing issues                  |
+| `ChunkingService`         | Create chunks while preserving document, page, section, and chunk metadata |
+| `EmbeddingService`        | Generate local embeddings using SentenceTransformers                       |
+| `VectorStoreService`      | Store and search vectors in ChromaDB                                       |
+| `RetrievalService`        | Retrieve evidence, apply threshold filtering, create citation cards        |
+| `AnswerGenerationService` | Generate citation-grounded answers using Groq/OpenAI or fallback           |
+| `DocumentService`         | Orchestrate upload, retrieval, and answer workflows                        |
 
 ---
 
 ## Frontend Design
 
-The Streamlit frontend is organized into product pages and reusable components.
+The Streamlit UI is organized into pages and reusable components.
 
 ### Pages
 
-| Page | Purpose |
-|---|---|
-| Ask PolicyGPT | Upload a document, ask questions, and inspect answers and citations |
-| Evidence Explorer | Inspect retrieval results before answer generation |
-| Architecture | Review the end-to-end system design |
+| Page              | Purpose                                               |
+| ----------------- | ----------------------------------------------------- |
+| Ask PolicyGPT     | Upload PDF, ask questions, view answers and citations |
+| Evidence Explorer | Inspect retrieved citation evidence before generation |
+| Architecture      | Explain the end-to-end RAG system design              |
 
-### Reusable UI Components
+### UI Components
 
-| Component | Purpose |
-|---|---|
-| `answer_card.py` | Display a generated answer or fallback response |
-| `citation_card.py` | Display source document, page, section, excerpt, and score |
-| `badges.py` | Display evidence, confidence, provider, model, and fallback status |
-| `cards.py` | Provide reusable layout and summary cards |
-| `evidence_panel.py` | Display retrieval trace and evidence summary |
-| `styles.py` | Apply the application’s custom product styling |
-
----
-
-## API Endpoints
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/api/v1/health` | Check backend health and safe configuration status |
-| `POST` | `/api/v1/documents/upload` | Upload, process, and index a PDF |
-| `POST` | `/api/v1/documents/search` | Run raw semantic search |
-| `POST` | `/api/v1/documents/evidence` | Retrieve scored citation evidence |
-| `POST` | `/api/v1/documents/ask` | Generate an evidence-gated answer |
-
-Interactive API documentation is available locally at:
-
-```text
-http://localhost:8000/docs
-```
+| Component           | Purpose                                                           |
+| ------------------- | ----------------------------------------------------------------- |
+| `answer_card.py`    | Render generated answer or fallback response                      |
+| `citation_card.py`  | Render document name, page, section, excerpt, and score           |
+| `badges.py`         | Render evidence, confidence, provider, model, and fallback badges |
+| `cards.py`          | Render reusable layout and summary cards                          |
+| `evidence_panel.py` | Render retrieval trace and evidence summary                       |
+| `styles.py`         | Apply custom enterprise-style CSS                                 |
 
 ---
 
-## Technology Stack
+## Tech Stack
 
-| Layer | Technologies |
-|---|---|
-| Language | Python |
-| Backend | FastAPI, Pydantic v2 |
-| PDF processing | PyMuPDF |
-| Embeddings | SentenceTransformers |
-| Vector storage | ChromaDB |
-| Generation | Groq API, OpenAI SDK, no-LLM fallback |
-| Frontend | Streamlit, custom CSS, reusable components |
-| Configuration | Pydantic Settings, `.env` |
-| Logging | structlog and Python logging |
-| Packaging | Dockerfile |
-| Local storage | ChromaDB persistent directory |
+### Backend
+
+* Python
+* FastAPI
+* Pydantic v2
+* PyMuPDF
+* SentenceTransformers
+* ChromaDB
+* OpenAI Python SDK
+* Groq OpenAI-compatible API
+* structlog / Python logging
+
+### Frontend
+
+* Streamlit
+* custom CSS
+* reusable UI components
+* multipage navigation
+* session state
+* requests API client
+
+### Storage
+
+* Local ChromaDB persistent directory
+* PostgreSQL for durable document metadata
+* Local `data/uploads` source-PDF storage
+* Local `.env` configuration
+* Demo PDF in `examples/`
 
 ---
 
-## Project Structure
+## Folder Structure
 
 ```text
 policygpt-enterprise/
@@ -515,11 +501,16 @@ policygpt-enterprise/
 │   │   ├── badges.py
 │   │   ├── cards.py
 │   │   ├── citation_card.py
+│   │   ├── evaluation_components.py
 │   │   └── evidence_panel.py
+│   │
+│   ├── services/
+│   │   └── evaluation_results_service.py
 │   │
 │   └── pages/
 │       ├── ask.py
 │       ├── evidence.py
+│       ├── evaluation_dashboard.py
 │       └── architecture.py
 │
 ├── docs/
@@ -531,13 +522,7 @@ policygpt-enterprise/
 │   └── sample_hr_policy.pdf
 │
 ├── screenshots/
-│   ├── 01-dashboard-upload.png
-│   ├── 02-citation-backed-answer.png
-│   ├── 03-ai-policy-answer.png
-│   ├── 04-unsupported-fallback.png
-│   ├── 05-evidence-explorer.png
-│   ├── 06-architecture-page.png
-│   └── 07-fastapi-docs.png
+│   └── .gitkeep
 │
 ├── .streamlit/
 │   └── config.toml
@@ -554,49 +539,11 @@ policygpt-enterprise/
 
 ---
 
-## Local Setup
+## Environment Variables
 
-### 1. Clone the repository
+Create a `.env` file from `.env.example`.
 
-```bash
-git clone https://github.com/chintan-02/policygpt-enterprise.git
-cd policygpt-enterprise
-```
-
-### 2. Create a virtual environment
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-On Windows:
-
-```bash
-.venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Create the environment file
-
-```bash
-cp .env.example .env
-```
-
-Add the required configuration and provider key to `.env`.
-
-> Never commit a real `.env` file or API key.
-
----
-
-## Environment Configuration
-
-A typical local configuration is:
+Minimum local configuration:
 
 ```env
 APP_NAME=PolicyGPT Enterprise
@@ -605,12 +552,14 @@ APP_VERSION=0.1.0
 DEBUG=true
 
 API_PREFIX=/api/v1
+
 LOG_LEVEL=INFO
 
 BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8000
 
 CORS_ALLOWED_ORIGINS=http://localhost:8501,http://localhost:3000,http://localhost:5173
+
 MAX_PDF_UPLOAD_SIZE_MB=10
 
 TEXT_CHUNK_SIZE_CHARS=1200
@@ -622,7 +571,15 @@ EMBEDDING_BATCH_SIZE=32
 CHROMA_PERSIST_DIRECTORY=data/chroma
 CHROMA_COLLECTION_NAME=policygpt_documents
 
+DATABASE_URL=postgresql+psycopg://policygpt:change_me@localhost:5432/policygpt
+DATABASE_POOL_SIZE=5
+DATABASE_MAX_OVERFLOW=5
+DATABASE_POOL_TIMEOUT_SECONDS=30
+DATABASE_ECHO=false
+DOCUMENT_STORAGE_DIR=data/uploads
+
 SEARCH_TOP_K_DEFAULT=5
+
 MIN_RETRIEVAL_SCORE=0.45
 CITATION_EXCERPT_MAX_CHARS=450
 LLM_EVIDENCE_MAX_CHARS=1200
@@ -639,16 +596,36 @@ GROQ_MODEL_NAME=llama-3.3-70b-versatile
 
 OPENAI_API_KEY=
 OPENAI_MODEL_NAME=gpt-4o-mini
+
+# Optional repository-relative dashboard result path
+POLICYGPT_EVAL_RESULTS_PATH=eval/results/latest_eval_results.json
 ```
 
-Configuration values can be adjusted for local experiments. Production environments would require secure secret storage rather than a local `.env` file.
+Do not commit your real `.env` file.
 
 ---
 
-## Run the Backend
+## Installation
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+---
+
+## Run Backend
 
 ```bash
 uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Backend docs:
+
+```text
+http://localhost:8000/docs
 ```
 
 Health check:
@@ -657,17 +634,11 @@ Health check:
 curl http://localhost:8000/api/v1/health
 ```
 
-Swagger documentation:
-
-```text
-http://localhost:8000/docs
-```
-
 ---
 
-## Run the Streamlit Interface
+## Run Streamlit UI
 
-Open a second terminal and activate the same environment:
+Open a second terminal:
 
 ```bash
 source .venv/bin/activate
@@ -680,23 +651,58 @@ Open:
 http://localhost:8501
 ```
 
+### RAG Evaluation Dashboard
+
+The **RAG Evaluation** page is a read-only quality and observability view over:
+
+```text
+eval/results/latest_eval_results.json
+eval/results/latest_eval_results.csv
+```
+
+Generate or refresh those artifacts outside Streamlit:
+
+```bash
+python eval/validate_dataset.py
+python eval/run_eval.py --request-delay-seconds 5
+```
+
+Then start the existing UI entrypoint:
+
+```bash
+streamlit run ui/app.py
+```
+
+Use **Refresh results** in the dashboard after a new run. The optional
+`POLICYGPT_EVAL_RESULTS_PATH` setting may point to another repository-relative
+JSON artifact; browser users cannot choose arbitrary filesystem paths.
+
+Partial runs remain viewable but are labeled clearly and should not be treated
+as the full benchmark. Provider fallback is reported separately from retrieval
+quality: an answer-ready case can retain correct citations while external
+generation is replaced by the safe citation-only fallback. The dashboard does
+not infer a specific provider error unless the artifact records one.
+
+Generated JSON and CSV outputs are ignored by Git and should be regenerated in
+each environment. The dashboard never runs the evaluator or reads provider logs.
+
 ---
 
-## Demo Document
+## Demo PDF
 
-The repository includes a fictional sample HR policy:
+A fictional sample HR policy PDF is included for testing:
 
 ```text
 examples/sample_hr_policy.pdf
 ```
 
-The file is intended for public demonstration and does not contain real employee data, confidential company information, or legal advice.
+It is safe for public demo use and does not contain real employee data, confidential company information, or legal advice.
 
 ---
 
 ## Demo Questions
 
-After uploading the sample document, try:
+Try these questions after uploading the sample PDF:
 
 ```text
 What is the remote work equipment allowance?
@@ -707,182 +713,159 @@ What does the policy say about expense receipts?
 What is the CEO home address?
 ```
 
-The final question is intentionally unsupported and should trigger the safe fallback path.
+The final question is intentionally unsupported and should trigger fallback behavior.
 
 ---
 
-## Expected Supported Behavior
+## Example Supported Response
 
-Example question:
+Question:
 
 ```text
 What is the remote work equipment allowance?
 ```
 
-Expected system behavior:
+Expected behavior:
 
-- supporting evidence is retrieved
-- evidence status is moderate or strong
-- confidence is greater than zero
-- a citation points to the relevant policy section and page
-- the configured provider generates the answer
-- fallback is `false`
+* answer is generated
+* evidence status is moderate or strong
+* confidence score is greater than zero
+* citation card points to the remote/hybrid work section
+* provider is Groq or OpenAI
+* fallback is false
 
-The generated answer should remain limited to information supported by the retrieved policy evidence.
+Expected answer should mention:
+
+* one-time equipment allowance
+* up to CAD 300
+* approved ergonomic or productivity items
+* receipts required
+* approval before reimbursement
 
 ---
 
-## Expected Unsupported Behavior
+## Example Unsupported Response
 
-Example question:
+Question:
 
 ```text
 What is the CEO home address?
 ```
 
-Expected system behavior:
+Expected behavior:
 
-- evidence status is insufficient
-- no normal answer is generated
-- confidence is `0.0`
-- citation count is `0`
-- provider is reported as unavailable or none for the fallback path
-- fallback is `true`
+* no answer is generated
+* evidence status is insufficient
+* confidence score is 0.0
+* citation count is 0
+* provider is none
+* fallback is true
 
-This demonstrates that the system does not invent unsupported policy details.
+This demonstrates that PolicyGPT does not invent unsupported policy details.
+
+---
+
+## API Endpoints
+
+| Method | Endpoint                     | Purpose                         |
+| ------ | ---------------------------- | ------------------------------- |
+| `GET`  | `/api/v1/health`             | Check backend health            |
+| `POST` | `/api/v1/documents/upload`   | Upload and index PDF            |
+| `GET`  | `/api/v1/documents`          | List persistent document metadata |
+| `GET`  | `/api/v1/documents/{id}`     | Read safe document metadata       |
+| `GET`  | `/api/v1/documents/{id}/status` | Poll document lifecycle status |
+| `POST` | `/api/v1/documents/search`   | Raw semantic search             |
+| `POST` | `/api/v1/documents/evidence` | Retrieve citation evidence      |
+| `POST` | `/api/v1/documents/ask`      | Generate citation-backed answer |
 
 ---
 
 ## Trust and Safety Design
 
-PolicyGPT follows these core rules:
+PolicyGPT follows three safety rules:
 
-1. Answers should be grounded in uploaded documents.
-2. Generation should be skipped when evidence is insufficient.
-3. Citations should expose the evidence used to support the answer.
-4. Missing evidence should be communicated explicitly.
-5. API keys should never be returned through the UI or health endpoint.
-6. Users should treat results as decision support and verify important policy interpretations with the document owner.
+1. Answers must be grounded in uploaded documents.
+2. LLM generation is skipped when evidence is insufficient.
+3. Citation cards expose the source evidence used for generation.
 
-### Current safety boundaries
-
-PolicyGPT:
-
-- does not provide legal advice
-- does not replace HR, compliance, privacy, or legal professionals
-- does not verify whether an uploaded policy is current or officially approved
-- does not guarantee that retrieval found every relevant passage
-- does not automatically make employment or compliance decisions
-- should not receive confidential organizational files without an approved secure deployment
-
----
-
-## Validation and Demonstration
-
-The current repository includes:
-
-- interactive Swagger documentation
-- a fictional demonstration PDF
-- supported and unsupported example questions
-- a manual smoke-test checklist
-- UI screenshots covering ingestion, supported answers, fallback, evidence inspection, architecture, and backend endpoints
-
-Formal RAG evaluation is not yet complete. The project does not currently claim measured retrieval accuracy, faithfulness, hallucination rate, or production reliability.
+This helps reduce hallucination risk and makes the system more suitable for HR, SOP, compliance, and policy use cases.
 
 ---
 
 ## Current Limitations
 
-- Phase 1 MVP
-- no user authentication
-- no role-based access control
-- no encrypted multi-user document store
-- no PostgreSQL metadata database
-- no document deletion endpoint
-- no formal RAG evaluation dataset
-- no automated retrieval or faithfulness scorecard
-- no OCR for scanned PDFs
-- no multi-document comparison
-- no production monitoring
-- no production cloud deployment
-- no legal or compliance validation
+This is still a Phase 1 MVP.
+
+Current limitations:
+
+* no user authentication
+* no role-based access control
+* no Documents frontend yet (Step 15A)
+* no document deletion endpoint yet
+* no multi-document comparison yet
+* no OCR for scanned PDFs yet
+* no production deployment yet
+
+These are intentionally deferred until after the core RAG flow is working.
 
 ---
 
 ## Roadmap
 
-### Phase 2 — Evaluation and Platform Foundations
+### Phase 1 — Core RAG MVP
 
-- create a labelled policy-question evaluation set
-- measure retrieval relevance and citation quality
-- evaluate answer faithfulness
-- add confidence analytics
-- add PostgreSQL metadata storage
-- add Docker Compose
-- add structured latency, score, token, and cost logging
-- add automated backend tests
-- add GitHub Actions CI
+* FastAPI backend
+* PDF upload
+* extraction
+* cleaning
+* chunking
+* embeddings
+* vector search
+* citation-backed answers
+* Streamlit UI
 
-### Phase 3 — Advanced Document Intelligence
+### Phase 2 — Differentiator
 
-- multi-document comparison
-- policy-version comparison
-- compliance-summary generation
-- human-reviewed report export
-- LangGraph query routing where justified
-- authentication and RBAC
-- secure cloud deployment
-- observability and operational dashboards
+* RAG evaluation
+* confidence analytics
+* evaluation dashboard
+* PostgreSQL metadata
+* Docker Compose
+* logging for latency, retrieval score, and token usage
 
----
+### Phase 3 — Advanced
 
-## Engineering Skills Demonstrated
-
-This project demonstrates practical experience with:
-
-- end-to-end RAG system design
-- PDF extraction and preprocessing
-- metadata-aware chunking
-- SentenceTransformer embeddings
-- ChromaDB vector retrieval
-- retrieval-score thresholds
-- evidence-gated generation
-- citation construction
-- provider abstraction
-- safe fallback behavior
-- FastAPI backend architecture
-- Pydantic request and response contracts
-- modular service design
-- Streamlit product-interface development
-- failure-state and empty-state UX
-- environment-based configuration
-- responsible AI boundaries
-- production-readiness planning
+* multi-document comparison
+* compliance report generation
+* LangGraph query router
+* cloud deployment
+* CI/CD
 
 ---
 
-## Accuracy and Honesty
+## Portfolio Positioning
 
-The README separates implemented functionality from planned work.
+This project demonstrates:
 
-PolicyGPT currently demonstrates a working Phase 1 evidence-first RAG workflow. Formal RAG evaluation, authentication, PostgreSQL metadata storage, Docker Compose, CI/CD, monitoring, and cloud deployment remain future work.
+* RAG system design
+* FastAPI backend engineering
+* vector search with ChromaDB
+* citation-grounded answer generation
+* LLM provider abstraction
+* safe fallback behavior
+* Streamlit dashboard UI
+* production-style architecture thinking
 
-No unsupported accuracy, hallucination-reduction, compliance, or production-readiness claims are made.
+Target roles:
+
+* AI Engineer
+* GenAI Developer
+* LLM Engineer
+* Machine Learning Engineer
+* Data/AI Application Developer
 
 ---
 
-## Author
+## License
 
-**Chintan Patel**
-
-- [Portfolio](https://chintan-patel-ai.netlify.app/)
-- [LinkedIn](https://www.linkedin.com/in/chintan-patel-ai/)
-- [GitHub](https://github.com/chintan-02)
-
----
-
-## License and Use
-
-This project is intended for portfolio, educational, research, and software-engineering demonstration purposes.
-
-It should not be used as an official HR, legal, policy, or compliance decision system without the security, evaluation, governance, and organizational controls described above.
+This project is for portfolio and educational use.

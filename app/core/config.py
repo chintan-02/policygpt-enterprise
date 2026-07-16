@@ -1,15 +1,16 @@
 import json
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
+from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     app_name: str = Field(default="PolicyGPT Enterprise", alias="APP_NAME")
 
-    app_env: Literal["development", "staging", "production"] = Field(
+    app_env: Literal["development", "staging", "production", "test"] = Field(
         default="development",
         alias="APP_ENV",
     )
@@ -20,6 +21,23 @@ class Settings(BaseSettings):
     api_prefix: str = Field(default="/api/v1", alias="API_PREFIX")
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+
+    enable_rag_query_logging: bool = Field(
+        default=True,
+        alias="ENABLE_RAG_QUERY_LOGGING",
+    )
+    rag_query_log_path: str = Field(
+        default="logs/rag_queries.jsonl",
+        alias="RAG_QUERY_LOG_PATH",
+    )
+    rag_log_include_question: bool = Field(
+        default=True,
+        alias="RAG_LOG_INCLUDE_QUESTION",
+    )
+    evaluation_results_path: str = Field(
+        default="eval/results/latest_eval_results.json",
+        alias="POLICYGPT_EVAL_RESULTS_PATH",
+    )
 
     backend_host: str = Field(default="0.0.0.0", alias="BACKEND_HOST")
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
@@ -49,9 +67,68 @@ class Settings(BaseSettings):
         alias="CHROMA_COLLECTION_NAME",
     )
 
+    database_url: str | None = Field(default=None, alias="DATABASE_URL")
+    database_pool_size: int = Field(default=5, ge=1, alias="DATABASE_POOL_SIZE")
+    database_max_overflow: int = Field(
+        default=5,
+        ge=0,
+        alias="DATABASE_MAX_OVERFLOW",
+    )
+    database_pool_timeout_seconds: int = Field(
+        default=30,
+        ge=1,
+        alias="DATABASE_POOL_TIMEOUT_SECONDS",
+    )
+    database_echo: bool = Field(default=False, alias="DATABASE_ECHO")
+    document_storage_dir: str = Field(
+        default="data/uploads",
+        alias="DOCUMENT_STORAGE_DIR",
+    )
+
     search_top_k_default: int = Field(default=5, alias="SEARCH_TOP_K_DEFAULT")
 
     min_retrieval_score: float = Field(default=0.45, alias="MIN_RETRIEVAL_SCORE")
+    rag_candidate_retrieval_floor: float = Field(
+        default=0.30,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_CANDIDATE_RETRIEVAL_FLOOR",
+    )
+    rag_direct_support_score_floor: float = Field(
+        default=0.35,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_DIRECT_SUPPORT_SCORE_FLOOR",
+    )
+    rag_direct_support_coverage_min: float = Field(
+        default=0.60,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_DIRECT_SUPPORT_COVERAGE_MIN",
+    )
+    rag_weak_confidence_threshold: float = Field(
+        default=0.40,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_WEAK_CONFIDENCE_THRESHOLD",
+    )
+    rag_moderate_confidence_threshold: float = Field(
+        default=0.55,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_MODERATE_CONFIDENCE_THRESHOLD",
+    )
+    rag_strong_confidence_threshold: float = Field(
+        default=0.75,
+        ge=0.0,
+        le=1.0,
+        alias="RAG_STRONG_CONFIDENCE_THRESHOLD",
+    )
+    rag_confidence_max_evidence_chunks: int = Field(
+        default=3,
+        ge=1,
+        alias="RAG_CONFIDENCE_MAX_EVIDENCE_CHUNKS",
+    )
     citation_excerpt_max_chars: int = Field(
         default=450,
         alias="CITATION_EXCERPT_MAX_CHARS",
@@ -69,6 +146,22 @@ class Settings(BaseSettings):
     )
     llm_max_output_tokens: int = Field(default=700, alias="LLM_MAX_OUTPUT_TOKENS")
     llm_temperature: float = Field(default=0.1, alias="LLM_TEMPERATURE")
+    llm_max_retries: int = Field(
+        default=2,
+        ge=0,
+        le=5,
+        alias="LLM_MAX_RETRIES",
+    )
+    llm_retry_base_delay_seconds: float = Field(
+        default=1.0,
+        ge=0.0,
+        alias="LLM_RETRY_BASE_DELAY_SECONDS",
+    )
+    llm_retry_max_delay_seconds: float = Field(
+        default=5.0,
+        ge=0.0,
+        alias="LLM_RETRY_MAX_DELAY_SECONDS",
+    )
 
     groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
     groq_base_url: str = Field(
@@ -96,11 +189,15 @@ class Settings(BaseSettings):
         "app_version",
         "api_prefix",
         "log_level",
+        "rag_query_log_path",
+        "evaluation_results_path",
         "backend_host",
         "cors_allowed_origins",
         "embedding_model_name",
         "chroma_persist_directory",
         "chroma_collection_name",
+        "database_url",
+        "document_storage_dir",
         "llm_provider",
         "groq_api_key",
         "groq_base_url",
@@ -128,6 +225,53 @@ class Settings(BaseSettings):
             return value[1:-1].strip()
 
         return value
+
+    @model_validator(mode="after")
+    def validate_ordered_settings(self) -> Self:
+        if self.app_env != "test" and not self.database_url:
+            raise ValueError("DATABASE_URL is required outside tests.")
+
+        if (
+            self.rag_candidate_retrieval_floor
+            > self.rag_direct_support_score_floor
+        ):
+            raise ValueError(
+                "RAG_CANDIDATE_RETRIEVAL_FLOOR must be less than or equal to "
+                "RAG_DIRECT_SUPPORT_SCORE_FLOOR."
+            )
+
+        if not (
+            self.rag_weak_confidence_threshold
+            < self.rag_moderate_confidence_threshold
+            < self.rag_strong_confidence_threshold
+        ):
+            raise ValueError(
+                "RAG confidence thresholds must satisfy weak < moderate < strong."
+            )
+
+        if (
+            self.llm_retry_max_delay_seconds
+            < self.llm_retry_base_delay_seconds
+        ):
+            raise ValueError(
+                "LLM_RETRY_MAX_DELAY_SECONDS must be greater than or equal to "
+                "LLM_RETRY_BASE_DELAY_SECONDS."
+            )
+
+        return self
+
+    @property
+    def safe_database_config(self) -> dict[str, str | int | bool | None]:
+        """Return connection diagnostics without credentials or the full URL."""
+        parsed = urlsplit(self.database_url or "")
+        return {
+            "driver": parsed.scheme or None,
+            "host": parsed.hostname or None,
+            "pool_size": self.database_pool_size,
+            "max_overflow": self.database_max_overflow,
+            "pool_timeout_seconds": self.database_pool_timeout_seconds,
+            "echo": self.database_echo,
+        }
 
     @property
     def cors_origins_list(self) -> list[str]:

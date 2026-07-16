@@ -1,0 +1,98 @@
+:root {
+  /* PolicyGPT brand scales */
+  --teal-50: #f0fdfa;
+  --teal-100: #ccfbf1;
+  --teal-200: #99f6e4;
+  --teal-300: #5eead4;
+  --teal-400: #2dd4bf;
+  --teal-500: #14b8a6;
+  --teal-600: #0d9488;
+  --teal-700: #0f766e;
+  --teal-800: #115e59;
+  --teal-900: #134e4a;
+
+  --navy-50: #f3f6fa;
+  --navy-100: #e5eaf2;
+  --navy-200: #cbd5e1;
+  --navy-300: #94a3b8;
+  --navy-400: #64748b;
+  --navy-500: #475569;
+  --navy-600: #334155;
+  --navy-700: #24324f;
+  --navy-800: #14213d;
+  --navy-900: #0b1328;
+
+  --success-50: #f0fdf4;
+  --success-100: #dcfce7;
+  --success-200: #bbf7d0;
+  --success-300: #86efac;
+  --success-400: #4ade80;
+  --success-500: #22c55e;
+  --success-600: #16a34a;
+  --success-700: #15803d;
+  --success-800: #166534;
+  --success-900: #14532d;
+
+  --warning-50: #fffbeb;
+  --warning-100: #fef3c7;
+  --warning-200: #fde68a;
+  --warning-300: #fcd34d;
+  --warning-400: #fbbf24;
+  --warning-500: #f59e0b;
+  --warning-600: #d97706;
+  --warning-700: #b45309;
+  --warning-800: #92400e;
+  --warning-900: #78350f;
+
+  --error-50: #fef3f2;
+  --error-100: #fee4e2;
+  --error-200: #fecdca;
+  --error-300: #fda29b;
+  --error-400: #f97066;
+  --error-500: #f04438;
+  --error-600: #d92d20;
+  --error-700: #b42318;
+  --error-800: #912018;
+  --error-900: #7a271a;
+
+  --info-50: #eff8ff;
+  --info-100: #d1e9ff;
+  --info-200: #b2ddff;
+  --info-300: #84caff;
+  --info-400: #53b1fd;
+  --info-500: #2e90fa;
+  --info-600: #1570ef;
+  --info-700: #175cd3;
+  --info-800: #1849a9;
+  --info-900: #194185;
+
+  --neutral-50: #f9fafb;
+  --neutral-100: #f2f4f7;
+  --neutral-200: #e4e7ec;
+  --neutral-300: #d0d5dd;
+  --neutral-400: #98a2b3;
+  --neutral-500: #667085;
+  --neutral-600: #475467;
+  --neutral-700: #344054;
+  --neutral-800: #1d2939;
+  --neutral-900: #111827;
+
+  --app-background: #f6f8fb;
+  --surface: #ffffff;
+  --text-primary: #111827;
+  --text-secondary: #667085;
+  --brand: #0f766e;
+  --deep-navy: #14213d;
+
+  --sidebar-width: 248px;
+  --topbar-height: 64px;
+  --content-max-width: 1440px;
+  --content-padding: 28px;
+  --grid-gap: 22px;
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-surface: 16px;
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
