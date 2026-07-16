@@ -13,11 +13,11 @@ PolicyGPT Enterprise — Evidence Intelligence Console is the product interface 
 - Lucide icons
 - Geist Sans for interface copy and Geist Mono for traceability metadata
 
-## Phase 14A scope
+## Phase 14B scope
 
-This phase establishes the application shell, responsive navigation, route structure, PolicyGPT design system, server-only FastAPI health access, honest operational states, and reusable evidence UI primitives. The existing FastAPI backend remains unchanged.
+This phase connects the real Ask PolicyGPT vertical slice to the existing FastAPI retrieval and answer pipeline. The browser calls the same-origin `POST /api/ask` route, which validates the request and forwards it server-side to `POST /api/v1/documents/ask`.
 
-The Streamlit application remains the internal QA console. This Next.js application is the product foundation.
+The Ask workspace presents supported answers with citations, unsupported outcomes, provider fallback, request failures, and invalid responses as distinct states. It does not infer state from answer text.
 
 ## Environment setup
 
@@ -50,11 +50,11 @@ npm run dev
 
 ## Route map
 
-| Route | Phase 14A state |
+| Route | Phase 14B state |
 | --- | --- |
 | `/` | Overview with live backend health |
 | `/documents` | Honest persistence placeholder |
-| `/ask` | Honest Phase 14B integration placeholder |
+| `/ask` | Live citation-backed Ask workspace |
 | `/evaluations/overview` | Evaluation overview placeholder |
 | `/evaluations/cases` | Case inspection placeholder |
 | `/evaluations/confidence` | Confidence calibration placeholder |
@@ -62,6 +62,7 @@ npm run dev
 | `/evaluations/runs/latest` | Latest-run placeholder |
 | `/system` | Live health, architecture, and capability boundaries |
 | `/api/health` | Safe Next.js health BFF response |
+| `/api/ask` | Validated same-origin Ask BFF endpoint |
 
 `/evaluations` redirects to `/evaluations/overview`. Evaluation navigation uses real URLs, so every route can load directly.
 
@@ -75,15 +76,46 @@ npm run dev
 - Retrieval similarity remains a raw decimal and is never converted into a percentage.
 - The provenance rail is the signature source-traceability pattern.
 
+## Ask request flow
+
+1. The browser validates a non-empty question up to 2,000 characters.
+2. `POST /api/ask` applies the same validation, uses a 60-second upstream timeout, and sends only the question plus the backend default retrieval count.
+3. FastAPI retrieves and calibrates evidence, then returns a structured supported, unsupported, or provider-fallback response.
+4. A supported answer is presented only when at least one citation is present. Retrieval scores remain raw decimals; only the calibrated confidence score is displayed as a percentage.
+
+Ask searches all documents currently indexed in the evidence store. There is no document selector or persistent document library in this phase.
+
+Supported responses show the grounded answer, a source/page summary, calibrated evidence confidence, decision reasons, the real citation metadata in the Provenance Rail, and a review disclaimer. Unsupported responses do not show speculative answer text. If evidence is answer-ready while the configured answer provider is unavailable, the workspace shows an amber citation-only fallback and preserves the available evidence.
+
+The Provenance Rail traces each excerpt to its safe document name, page, section, and support state. Retrieval similarity is shown only as a raw decimal inside collapsed engineering details; it is not a probability and is never formatted as a percentage.
+
+## Manual sample questions
+
+With the sample HR policy indexed:
+
+- Supported or citation-only fallback: `What is the remote work equipment allowance, and what is required for reimbursement?`
+- Unsupported: `What severance amount does Alberta law require for an employee with five years of service?`
+
+The unsupported question must not produce external legal advice. Ask is synchronous in Phase 14B; streaming and SSE are explicitly deferred.
+
 ## Completed and pending workflows
 
 The backend already supports PDF extraction and indexing, ChromaDB retrieval, grounded generation, page-level citations, calibrated confidence, safety guardrails, observability, evaluation, provider retries, and safe citation-only fallback.
 
-Phase 14A does not add Ask API integration, upload, document persistence, evaluation reporting, streaming, PostgreSQL, authentication, roles, multi-tenancy, or dark mode. There is intentionally no authentication in this foundation phase; no production authorization claim is implied.
+Phase 14B does not add uploads, document persistence, evaluation reporting, streaming, PostgreSQL, authentication, roles, multi-tenancy, dark mode, or agent behavior. There is intentionally no authentication in this phase; no production authorization claim is implied.
 
 ## Verification
 
 ```bash
+npm test
 npm run lint
 npm run build
+```
+
+Regenerate the frontend contract after an intentional FastAPI schema change:
+
+```bash
+cd ..
+python scripts/export_openapi.py
+npx openapi-typescript openapi.json -o frontend/src/lib/api/generated.ts
 ```

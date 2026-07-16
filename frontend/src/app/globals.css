@@ -131,6 +131,20 @@
     font-family: var(--font-geist-mono), monospace;
     font-variant-numeric: tabular-nums;
   }
+  .evidence-scrollbar {
+    scrollbar-color: var(--neutral-300) transparent;
+    scrollbar-width: thin;
+  }
+  .evidence-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .evidence-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .evidence-scrollbar::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--neutral-300);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

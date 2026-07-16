@@ -8,7 +8,10 @@ export function EngineeringPanel({
   children: React.ReactNode;
 }) {
   return (
-    <details className="group rounded-lg border border-neutral-200 bg-transparent text-sm">
+    <details
+      data-default-state="collapsed"
+      className="group rounded-lg border border-neutral-200 bg-transparent text-sm"
+    >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 font-medium text-neutral-700 marker:hidden">
         <Wrench aria-hidden="true" size={16} strokeWidth={1.75} />
         <span>{title}</span>

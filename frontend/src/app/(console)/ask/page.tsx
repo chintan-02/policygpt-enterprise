@@ -1,14 +1,17 @@
-import { MessageSquareText } from "lucide-react";
-import { PlaceholderPage } from "@/components/policygpt/placeholder-page";
+import { AskWorkspace } from "@/components/ask/ask-workspace";
+import { PageHeader } from "@/components/system/page-header";
+import { getBackendHealth } from "@/lib/api/health";
 
-export default function AskPage() {
+export default async function AskPage() {
+  const health = await getBackendHealth();
+
   return (
-    <PlaceholderPage
-      title="Ask PolicyGPT"
-      description="Ask an enterprise policy question and verify every claim against source evidence."
-      emptyTitle="Evidence-backed question workspace"
-      emptyDescription="The real FastAPI Ask workflow is connected in Phase 14B."
-      icon={MessageSquareText}
-    />
+    <>
+      <PageHeader
+        title="Ask PolicyGPT"
+        description="Ask an enterprise policy question and verify the response against source evidence."
+      />
+      <AskWorkspace health={health} />
+    </>
   );
 }

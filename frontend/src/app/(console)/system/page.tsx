@@ -13,6 +13,7 @@ import { getPublicAppEnvironment } from "@/lib/environment";
 import { architectureSteps } from "@/lib/navigation";
 
 const availableCapabilities = [
+  "Evidence-backed question workspace connected to the real FastAPI RAG pipeline",
   "PDF extraction and indexing",
   "ChromaDB evidence retrieval",
   "Grounded generation with page-level citations",
@@ -22,7 +23,6 @@ const availableCapabilities = [
 ];
 
 const pendingCapabilities = [
-  "Ask workspace integration",
   "Persistent document library",
   "Persisted evaluation reporting",
   "Authentication, roles, and multi-tenant controls",
@@ -50,7 +50,7 @@ export default async function SystemPage() {
           <div className="font-metric mt-4 text-2xl font-semibold text-neutral-900">
             {app.appVersion}
           </div>
-          <p className="mt-3 text-sm text-neutral-500">Phase 14A product foundation</p>
+          <p className="mt-3 text-sm text-neutral-500">Phase 14B Ask vertical slice</p>
         </QualityCard>
         <QualityCard tier="secondary" label="Environment">
           <div className="font-metric mt-4 text-2xl font-semibold text-neutral-900">
