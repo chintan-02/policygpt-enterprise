@@ -1,4 +1,4 @@
-import type { AskWorkspaceState } from "@/hooks/use-ask";
+import type { AskWorkspaceState } from "./ask-workspace";
 
 export type CompletedResultState =
   | "completed_supported"

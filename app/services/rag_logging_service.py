@@ -57,7 +57,6 @@ class RAGLoggingService:
         except Exception as exc:
             logger.warning(
                 "rag_query_log_persistence_failed",
-                log_path=str(log_path),
                 error_type=type(exc).__name__,
             )
 

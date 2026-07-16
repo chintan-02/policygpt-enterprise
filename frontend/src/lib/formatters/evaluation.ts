@@ -38,3 +38,34 @@ export function businessLabel(value: string): string {
     .replaceAll("_", " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
+
+const evaluationLabels: Record<string, string> = {
+  ai_privacy: "AI Privacy",
+  information_security: "Information Security",
+  unsupported_private_information: "Unsupported Private Information",
+  provider_generation_failure: "Provider unavailable — citation-only fallback",
+  passed_unsupported_fallback: "Unsupported fallback passed",
+  passed_supported_answer: "Supported answer passed",
+  retrieval_page_miss: "Retrieval page miss",
+  readiness_mismatch: "Answer-readiness mismatch",
+  fallback_guardrail_failure: "Unsupported fallback failed",
+  answer_completeness_failure: "Answer completeness failed",
+  numeric_guardrail_rejection: "Numeric guardrail rejection",
+  legal_scope_guardrail_rejection: "Policy scope guardrail rejection",
+  request_error: "Request error",
+  other_evaluation_failure: "Evaluation quality gate failed",
+};
+
+export function evaluationLabel(value: string): string {
+  return evaluationLabels[value] ?? businessLabel(value);
+}
+
+export function providerModeLabel(
+  provider: string,
+  fallbackDetected: boolean,
+): string {
+  if (fallbackDetected || provider.trim().toLowerCase() === "none") {
+    return "Citation-only";
+  }
+  return businessLabel(provider);
+}

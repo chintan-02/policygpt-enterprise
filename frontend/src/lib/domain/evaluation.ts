@@ -5,6 +5,7 @@ import {
   type ParsedEvaluationCase,
 } from "../validation/evaluation";
 import {
+  evaluationLabel,
   formatEvaluationLatency,
   formatEvaluationPercent,
 } from "../formatters/evaluation";
@@ -45,6 +46,7 @@ export type QualityGateView = {
   status: GateStatus;
   value: string;
   description: string;
+  statusLabel?: string;
 };
 
 export type OutcomeCardView = {
@@ -69,6 +71,23 @@ export type EvaluationFilters = {
   numericMismatch?: string;
   scopeRisk?: string;
   directSupport?: string;
+};
+
+export type EvaluationCasePresentation = {
+  evidence: { label: string; status: "success" | "warning" | "error" | "neutral" };
+  safety: { label: string; status: "success" | "warning" | "error" | "neutral" };
+  provider: { label: string; status: "success" | "warning" | "error" | "neutral" };
+  overall: { label: string; status: "success" | "warning" | "error" };
+};
+
+export type EvaluationIssueGroup = {
+  key: string;
+  title: string;
+  count: number;
+  description: string;
+  href: string;
+  caseIds: string[];
+  status: "warning" | "error";
 };
 
 export function providerFallbackDetected(evaluationCase: ParsedEvaluationCase): boolean {
@@ -167,85 +186,68 @@ export function prepareOutcomeCards(data: EvaluationViewModel): OutcomeCardView[
     (item) => item.should_answer && item.diagnostic !== "request_error",
   );
   const unsupported = data.results.filter((item) => !item.should_answer);
-  const generatedCompletenessCases = data.results.filter(
-    (item) =>
-      item.should_answer &&
-      item.answer_ready &&
-      !item.providerFallbackDetected &&
-      !item.fallback_used &&
-      item.diagnostic !== "request_error" &&
-      !item.error_type &&
-      item.answer.trim().length > 0 &&
-      item.keyword_match_score !== null &&
-      item.keyword_match_score !== undefined,
-  );
   const providerCases = data.results.filter(
     (item) => item.should_answer && item.answer_ready && item.diagnostic !== "request_error",
   );
   const generated = providerCases.filter((item) => !item.providerFallbackDetected).length;
-  // The evaluator owns keyword scoring. The frontend only scopes its existing
-  // per-case scores to answers that were actually generated, then aggregates them.
-  const completenessScore = generatedCompletenessCases.length
-    ? generatedCompletenessCases.reduce(
-        (total, item) => total + (item.keyword_match_score ?? 0),
-        0,
-      ) / generatedCompletenessCases.length
-    : null;
+  const readinessMatches = data.results.filter(
+    (item) => item.readiness_correct,
+  ).length;
 
   return [
     ratioOutcome(
       "evidence",
-      "Evidence Quality",
+      "Retrieval page-hit rate",
       supported.filter((item) => item.page_hit === true).length,
       supported.length,
       data.summary.retrieval_page_hit_rate,
-      "Expected policy pages found",
+      "Expected policy pages found across supported benchmark cases.",
     ),
     ratioOutcome(
       "safety",
-      "Safety",
+      "Unsupported fallback accuracy",
       unsupported.filter((item) => item.fallback_correct === true).length,
       unsupported.length,
       data.summary.fallback_accuracy,
-      "Unsupported questions safely blocked",
+      "Unsupported questions were blocked without unsupported citations.",
     ),
-    completenessScore === null
-      ? {
-          key: "completeness",
-          label: "Answer Completeness",
-          value: "N/A",
-          interpretation:
-            "No generated answers were available for completeness scoring.",
-          status: "neutral",
-          statusLabel: "Not applicable",
-        }
-      : {
-          key: "completeness",
-          label: "Answer Completeness",
-          value: formatEvaluationPercent(completenessScore),
-          interpretation: "Expected policy details included",
-          status: completenessScore === 1 ? "success" : "error",
-        },
+    ratioOutcome(
+      "readiness",
+      "Answer-readiness accuracy",
+      readinessMatches,
+      data.summary.total_questions,
+      data.summary.answer_readiness_accuracy,
+      "Evidence-gating decisions matched the benchmark support labels.",
+    ),
     providerCases.length === 0
       ? {
-          key: "provider",
-          label: "Provider Availability",
+          key: "generation",
+          label: "Generated-answer availability",
           value: "N/A",
           interpretation: "No applicable cases in this run",
           status: "neutral",
           statusLabel: "Not applicable",
         }
       : {
-          key: "provider",
-          label: "Provider Availability",
-          value: generated === providerCases.length ? "Operational" : "Degraded",
+          key: "generation",
+          label: "Generated-answer availability",
+          value: `${generated} / ${providerCases.length}`,
           interpretation:
             generated === providerCases.length
-              ? `${generated} of ${providerCases.length} answers generated`
-              : `${providerCases.length - generated} citation-only fallback${providerCases.length - generated === 1 ? "" : "s"} detected`,
+              ? "Generated answers were returned for all answer-ready cases."
+              : `${sentenceStartCount(providerCases.length - generated)} answer-ready case${providerCases.length - generated === 1 ? "" : "s"} used citation-only fallback because generation was unavailable.`,
           status: generated === providerCases.length ? "success" : "warning",
         },
   ];
+}
+
+function sentenceStartCount(value: number): string {
+  const words = [
+    "Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight",
+    "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen",
+    "Sixteen", "Seventeen", "Eighteen", "Nineteen", "Twenty",
+  ];
+  return words[value] ?? String(value);
 }
 
 function gate(
@@ -323,15 +325,16 @@ export function prepareQualityGates(data: EvaluationViewModel): QualityGateView[
         ),
   );
 
-  gates.push(
-    gate(
-      "duplicates",
-      "Duplicate citation warning",
-      !data.run.duplicate_citation_warning,
-      String(data.run.duplicate_citation_warning),
-      "Repeated citation identities should not occur.",
-    ),
-  );
+  gates.push({
+    key: "duplicates",
+    label: "Duplicate citations",
+    status: data.run.duplicate_citation_warning ? "needs_attention" : "passed",
+    statusLabel: data.run.duplicate_citation_warning ? "Needs review" : "Passed",
+    value: data.run.duplicate_citation_warning ? "Detected" : "None detected",
+    description: data.run.duplicate_citation_warning
+      ? "Repeated citation identities were detected."
+      : "No repeated citation identities were detected.",
+  });
 
   gates.push(
     providerCases.length === 0
@@ -359,17 +362,34 @@ export function prepareOperationalSummary(data: EvaluationViewModel): string {
     data.summary.supported_questions === 0 || data.summary.retrieval_page_hit_rate === 1;
   const safetyPassed =
     data.summary.unsupported_questions === 0 || data.summary.fallback_accuracy === 1;
-  const providerFallbacks = data.results.filter((item) => item.providerFallbackDetected).length;
+  const providerCases = data.results.filter(
+    (item) => item.should_answer && item.answer_ready && item.diagnostic !== "request_error",
+  );
+  const providerFallbacks = providerCases.filter(
+    (item) => item.providerFallbackDetected,
+  ).length;
   const statements: string[] = [];
-  if (evidencePassed && data.summary.supported_questions > 0) {
+  if (
+    evidencePassed &&
+    data.summary.supported_questions > 0 &&
+    safetyPassed &&
+    data.summary.unsupported_questions > 0
+  ) {
+    statements.push(
+      "Evidence retrieval found the expected policy pages and unsupported-answer safety passed.",
+    );
+  } else if (evidencePassed && data.summary.supported_questions > 0) {
     statements.push("Evidence retrieval found the expected policy pages.");
-  }
-  if (safetyPassed && data.summary.unsupported_questions > 0) {
+  } else if (safetyPassed && data.summary.unsupported_questions > 0) {
     statements.push("Unsupported-answer safety passed.");
   }
-  if (providerFallbacks > 0) {
+  if (providerCases.length > 0 && providerFallbacks === providerCases.length) {
     statements.push(
-      "The answer provider was unavailable for at least one answer-ready case, so citation-only fallback was used without changing the retrieval result.",
+      `All ${providerCases.length} answer-ready cases used citation-only fallback because generated answers were unavailable.`,
+    );
+  } else if (providerFallbacks > 0) {
+    statements.push(
+      `${providerFallbacks} of ${providerCases.length} answer-ready cases used citation-only fallback because generated answers were unavailable.`,
     );
   }
   if (data.summary.failed_questions_count > 0 && providerFallbacks === 0) {
@@ -385,19 +405,152 @@ export function shouldRenderEvaluationCharts(data: EvaluationViewModel): boolean
 export function groupCasesBy(
   cases: EvaluationCaseView[],
   key: "category" | "difficulty" | "evidence_status" | "llm_provider" | "diagnostic",
-): Array<{ name: string; passed: number; review: number; total: number }> {
-  const groups = new Map<string, { passed: number; review: number; total: number }>();
+): Array<{ name: string; passed: number; review: number; failed: number; total: number }> {
+  const groups = new Map<string, { passed: number; review: number; failed: number; total: number }>();
   for (const evaluationCase of cases) {
     const name = evaluationCase[key];
-    const current = groups.get(name) ?? { passed: 0, review: 0, total: 0 };
+    const current = groups.get(name) ?? { passed: 0, review: 0, failed: 0, total: 0 };
     current.total += 1;
     if (evaluationCase.case_passed) current.passed += 1;
-    else current.review += 1;
+    else if (evaluationCase.providerFallbackDetected) current.review += 1;
+    else current.failed += 1;
     groups.set(name, current);
   }
   return [...groups.entries()]
-    .map(([name, values]) => ({ name, ...values }))
-    .sort((left, right) => left.name.localeCompare(right.name));
+    .map(([name, values]) => ({ name: evaluationLabel(name), ...values }))
+    .sort((left, right) => right.total - left.total || left.name.localeCompare(right.name));
+}
+
+export function evaluationCasePresentation(
+  evaluationCase: EvaluationCaseView,
+): EvaluationCasePresentation {
+  if (
+    !evaluationCase.should_answer &&
+    evaluationCase.fallback_correct === true &&
+    evaluationCase.case_passed
+  ) {
+    return {
+      evidence: { label: "Insufficient evidence", status: "neutral" },
+      safety: { label: "Passed unsupported fallback", status: "success" },
+      provider: { label: "Not applicable", status: "neutral" },
+      overall: { label: "Passed", status: "success" },
+    };
+  }
+
+  if (
+    evaluationCase.should_answer &&
+    evaluationCase.answer_ready &&
+    evaluationCase.providerFallbackDetected
+  ) {
+    return {
+      evidence: { label: "Answer-ready", status: "success" },
+      safety: { label: "Evidence gate passed", status: "success" },
+      provider: { label: "Citation-only fallback", status: "warning" },
+      overall: { label: "Review provider", status: "warning" },
+    };
+  }
+
+  if (evaluationCase.case_passed) {
+    return {
+      evidence: {
+        label: evaluationCase.answer_ready ? "Answer-ready" : evaluationLabel(evaluationCase.evidence_status),
+        status: "success",
+      },
+      safety: { label: "Passed", status: "success" },
+      provider: { label: "Generated", status: "success" },
+      overall: { label: "Passed", status: "success" },
+    };
+  }
+
+  return {
+    evidence: { label: evaluationLabel(evaluationCase.evidence_status), status: "error" },
+    safety: { label: "Quality gate failed", status: "error" },
+    provider: {
+      label: evaluationCase.providerFallbackDetected ? "Citation-only fallback" : "Not completed",
+      status: evaluationCase.providerFallbackDetected ? "warning" : "error",
+    },
+    overall: { label: "Failed", status: "error" },
+  };
+}
+
+export function prepareEvaluationIssueGroups(
+  data: EvaluationViewModel,
+): EvaluationIssueGroup[] {
+  const groups: EvaluationIssueGroup[] = [];
+  const addGroup = (
+    key: string,
+    title: string,
+    description: string,
+    href: string,
+    cases: EvaluationCaseView[],
+    status: "warning" | "error",
+  ) => {
+    if (!cases.length) return;
+    groups.push({
+      key,
+      title,
+      count: cases.length,
+      description,
+      href,
+      caseIds: cases.map((item) => item.id).sort(),
+      status,
+    });
+  };
+
+  addGroup(
+    "provider",
+    "Provider generation unavailable",
+    "answer-ready cases used citation-only fallback.",
+    "/evaluations/cases?diagnostic=provider_generation_failure",
+    data.results.filter((item) => item.providerFallbackDetected),
+    "warning",
+  );
+  addGroup(
+    "requests",
+    "Request errors",
+    "cases did not complete the evaluation request.",
+    "/evaluations/cases?diagnostic=request_error",
+    data.results.filter((item) => item.diagnostic === "request_error"),
+    "error",
+  );
+  addGroup(
+    "numeric",
+    "Numeric mismatch flags",
+    "cases contained a structured numeric inconsistency.",
+    "/evaluations/cases?numericMismatch=true",
+    data.results.filter(
+      (item) => item.numeric_mismatch || item.confidence_breakdown?.numeric_mismatch,
+    ),
+    "warning",
+  );
+  addGroup(
+    "scope",
+    "Scope-risk flags",
+    "cases were explicitly flagged for policy-scope risk.",
+    "/evaluations/cases?scopeRisk=true",
+    data.results.filter(
+      (item) => item.scope_risk || item.confidence_breakdown?.scope_risk,
+    ),
+    "warning",
+  );
+  addGroup(
+    "duplicates",
+    "Duplicate citations",
+    "cases returned repeated citation identities.",
+    "/evaluations/cases",
+    data.results.filter((item) => item.duplicate_citation_count > 0),
+    "error",
+  );
+  addGroup(
+    "retrieval",
+    "Retrieval page misses",
+    "supported cases did not retrieve an expected policy page.",
+    "/evaluations/cases?diagnostic=retrieval_page_miss",
+    data.results.filter((item) => item.diagnostic === "retrieval_page_miss"),
+    "error",
+  );
+
+  return groups;
 }
 
 function filterBoolean(value: string | undefined, actual: boolean | null | undefined): boolean {
@@ -468,7 +621,8 @@ export function prepareConfidenceStatistics(data: EvaluationViewModel) {
   const answerability = data.results.map((item) => score(item, "answerability_score")).filter((value): value is number => value !== null);
   const questionCoverage = data.results.map((item) => score(item, "lexical_coverage")).filter((value): value is number => value !== null);
   const retrievalStrength = data.results.map((item) => score(item, "top_retrieval_score")).filter((value): value is number => value !== null);
-  const directSupport = data.results.map((item) => item.direct_support ?? item.confidence_breakdown?.direct_support).filter((value): value is boolean => value !== null && value !== undefined);
+  const answerReadyCases = data.results.filter((item) => item.answer_ready);
+  const directSupport = answerReadyCases.map((item) => item.direct_support ?? item.confidence_breakdown?.direct_support).filter((value): value is boolean => value !== null && value !== undefined);
   const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   const confidenceGroups = new Map<string, number[]>();
   for (const item of data.results) {
@@ -477,6 +631,11 @@ export function prepareConfidenceStatistics(data: EvaluationViewModel) {
     confidenceGroups.set(item.diagnostic, values);
   }
   return {
+    averageSupportedConfidence: data.summary.average_supported_confidence,
+    allCaseAverageConfidence: data.summary.average_confidence,
+    supportedCaseCount: data.summary.supported_questions,
+    answerReadyCount: answerReadyCases.length,
+    totalCaseCount: data.summary.total_questions,
     averageAnswerability: average(answerability),
     averageQuestionCoverage: average(questionCoverage),
     averageRetrievalStrength: average(retrievalStrength),
@@ -486,12 +645,13 @@ export function prepareConfidenceStatistics(data: EvaluationViewModel) {
     scopeRiskCount: data.results.filter((item) => item.scope_risk || item.confidence_breakdown?.scope_risk).length,
     evidenceDistribution: groupCasesBy(data.results, "evidence_status"),
     confidenceByOutcome: [...confidenceGroups.entries()].map(([name, values]) => ({
-      name,
+      name: evaluationLabel(name),
       score: average(values) ?? 0,
-    })),
+    })).sort((left, right) => right.score - left.score),
     topRetrievalScores: data.results.map((item) => ({
       name: item.id,
       score: score(item, "top_retrieval_score"),
-    })).filter((item): item is { name: string; score: number } => item.score !== null),
+    })).filter((item): item is { name: string; score: number } => item.score !== null)
+      .sort((left, right) => right.score - left.score),
   };
 }

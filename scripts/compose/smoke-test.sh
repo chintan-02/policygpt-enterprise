@@ -112,11 +112,15 @@ require_healthy_service backend
 require_healthy_service frontend
 
 wait_for_http "backend health" "${backend_base}/api/v1/health"
+wait_for_http "backend readiness" "${backend_base}/api/v1/ready"
 wait_for_http "frontend health" "${frontend_base}/api/health"
+wait_for_http "frontend readiness" "${frontend_base}/api/ready"
 wait_for_http "Documents page" "${frontend_base}/documents"
 
 require_json_response "backend health" "${backend_base}/api/v1/health"
+require_json_response "backend readiness" "${backend_base}/api/v1/ready"
 require_json_response "frontend health" "${frontend_base}/api/health"
+require_json_response "frontend readiness" "${frontend_base}/api/ready"
 require_json_response "Documents list BFF" "${frontend_base}/api/documents?limit=1&offset=0"
 
 echo "PASS: PolicyGPT Compose smoke test completed"

@@ -1,4 +1,5 @@
 import { AlertTriangle, CalendarClock } from "lucide-react";
+import Link from "next/link";
 import { OutcomeDistributionChart } from "@/components/features/evaluations/evaluation-charts";
 import {
   CompactDiagnostic,
@@ -13,6 +14,7 @@ import { PageHeader } from "@/components/system/page-header";
 import { loadEvaluationPageState } from "@/lib/api/evaluations";
 import {
   groupCasesBy,
+  prepareEvaluationIssueGroups,
   prepareOperationalSummary,
   prepareOutcomeCards,
   prepareQualityGates,
@@ -31,7 +33,9 @@ export default async function EvaluationOverviewPage() {
 }
 
 function OverviewContent({ data }: { data: Extract<Awaited<ReturnType<typeof loadEvaluationPageState>>, { state: "ready" }>["data"] }) {
-  const issues = data.results.filter((item) => !item.case_passed);
+  const issueGroups = prepareEvaluationIssueGroups(data);
+  const hardFailures = issueGroups.some((item) => item.status === "error");
+  const providerReview = issueGroups.some((item) => item.key === "provider");
   const charts = shouldRenderEvaluationCharts(data);
   return (
     <div className="space-y-[22px]">
@@ -44,7 +48,10 @@ function OverviewContent({ data }: { data: Extract<Awaited<ReturnType<typeof loa
             <h2 className="text-base font-semibold text-neutral-900">Operational summary</h2>
             <p className="mt-2 text-sm leading-6 text-neutral-600">{prepareOperationalSummary(data)}</p>
           </div>
-          <StatusPill status={issues.length ? "warning" : "success"} label={issues.length ? "Review required" : "All cases passed"} />
+          <StatusPill
+            status={hardFailures ? "error" : issueGroups.length ? "warning" : "success"}
+            label={hardFailures ? "Quality gate failed" : providerReview ? "Review provider" : issueGroups.length ? "Review required" : "All cases passed"}
+          />
         </div>
       </QualityCard>
 
@@ -57,9 +64,28 @@ function OverviewContent({ data }: { data: Extract<Awaited<ReturnType<typeof loa
       <div className="grid gap-[22px] lg:grid-cols-2">
         <QualityCard tier="secondary">
           <div className="flex items-center gap-2"><AlertTriangle aria-hidden="true" size={18} className="text-warning-700" /><h2 className="text-base font-semibold text-neutral-900">Issues requiring attention</h2></div>
-          {issues.length ? (
-            <ul className="mt-4 space-y-3">
-              {issues.map((item) => <li key={item.id} className="border-t border-neutral-200 pt-3 first:border-0 first:pt-0"><div className="font-metric text-xs text-neutral-500">{item.id}</div><p className="mt-1 text-sm text-neutral-700">{item.providerFallbackDetected ? "Answer-ready evidence used citation-only provider fallback." : "This benchmark case did not meet its expected outcome."}</p></li>)}
+          {issueGroups.length ? (
+            <ul className="mt-4 space-y-4">
+              {issueGroups.map((issue) => (
+                <li key={issue.key} className="border-t border-neutral-200 pt-4 first:border-0 first:pt-0">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-neutral-900">{issue.title}</h3>
+                      <p className="mt-1 text-sm text-neutral-700">
+                        <span className="font-metric font-semibold">{issue.count}</span>{" "}
+                        {issue.description}
+                      </p>
+                    </div>
+                    <Link href={issue.href} className="text-sm font-semibold text-teal-700 hover:text-teal-900 hover:underline">
+                      View filtered cases
+                    </Link>
+                  </div>
+                  <details className="mt-2 text-xs text-neutral-500">
+                    <summary className="cursor-pointer font-medium">Affected case IDs</summary>
+                    <p className="font-metric mt-2 break-words leading-5">{issue.caseIds.join(", ")}</p>
+                  </details>
+                </li>
+              ))}
             </ul>
           ) : <p className="mt-3 text-sm text-neutral-600">All evaluated cases met the benchmark outcome.</p>}
         </QualityCard>

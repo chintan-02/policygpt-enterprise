@@ -1,4 +1,4 @@
-import type { FrontendHealthResponse } from "@/lib/api/types";
+import type { FrontendHealthResponse, HealthStatus } from "@/lib/api/types";
 import type { PublicAppEnvironment } from "@/lib/environment";
 import { StatusPill } from "@/components/policygpt/status-pill";
 import { CurrentPageContext } from "./current-page-context";
@@ -7,9 +7,11 @@ import { MobileSidebar } from "./mobile-sidebar";
 export function Topbar({
   health,
   app,
+  platformStatus,
 }: {
   health: FrontendHealthResponse;
   app: PublicAppEnvironment;
+  platformStatus: HealthStatus;
 }) {
   return (
     <header className="sticky top-0 z-20 h-16 border-b border-neutral-200 bg-white">
@@ -23,7 +25,7 @@ export function Topbar({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <StatusPill status={health.status} />
+          <StatusPill status={platformStatus} />
           <span className="hidden rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-medium text-neutral-600 sm:inline-flex">
             {app.appEnvironment}
           </span>

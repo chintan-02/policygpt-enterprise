@@ -27,7 +27,12 @@ logger = structlog.get_logger(__name__)
 document_service = DocumentService()
 
 
-@router.post("/upload", response_model=DocumentIngestionResponse)
+@router.post(
+    "/upload",
+    response_model=DocumentIngestionResponse,
+    summary="Ingest a policy PDF",
+    description="Validate, store, extract, chunk, embed, and index one PDF with durable metadata.",
+)
 async def upload_document(
     file: UploadFile = File(...),
     session: Session = Depends(get_db_session),
@@ -50,7 +55,7 @@ async def upload_document(
     return result
 
 
-@router.get("", response_model=DocumentListResponse)
+@router.get("", response_model=DocumentListResponse, summary="List document metadata")
 def list_documents(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -66,7 +71,7 @@ def list_documents(
     )
 
 
-@router.get("/{document_id}", response_model=DocumentDetailResponse)
+@router.get("/{document_id}", response_model=DocumentDetailResponse, summary="Get document metadata")
 def get_document(
     document_id: UUID,
     session: Session = Depends(get_db_session),
@@ -74,7 +79,7 @@ def get_document(
     return DocumentMetadataService(session).get_detail(str(document_id))
 
 
-@router.get("/{document_id}/status", response_model=DocumentStatusResponse)
+@router.get("/{document_id}/status", response_model=DocumentStatusResponse, summary="Get ingestion lifecycle status")
 def get_document_status(
     document_id: UUID,
     session: Session = Depends(get_db_session),
@@ -82,7 +87,7 @@ def get_document_status(
     return DocumentMetadataService(session).get_status(str(document_id))
 
 
-@router.post("/search", response_model=DocumentSearchResponse)
+@router.post("/search", response_model=DocumentSearchResponse, summary="Search indexed evidence")
 async def search_documents(
     search_request: DocumentSearchRequest,
 ) -> DocumentSearchResponse:
@@ -90,7 +95,7 @@ async def search_documents(
 
     logger.info(
         "document_search_completed",
-        query=search_request.query,
+        query_chars=len(search_request.query),
         top_k=search_request.top_k,
         result_count=result.result_count,
     )
@@ -98,7 +103,7 @@ async def search_documents(
     return result
 
 
-@router.post("/evidence", response_model=DocumentEvidenceResponse)
+@router.post("/evidence", response_model=DocumentEvidenceResponse, summary="Retrieve gated citation evidence")
 async def retrieve_document_evidence(
     evidence_request: DocumentEvidenceRequest,
 ) -> DocumentEvidenceResponse:
@@ -106,7 +111,7 @@ async def retrieve_document_evidence(
 
     logger.info(
         "document_evidence_retrieved",
-        query=evidence_request.query,
+        query_chars=len(evidence_request.query),
         top_k=evidence_request.top_k,
         citation_count=result.citation_count,
         evidence_status=result.evidence_status,
@@ -117,7 +122,12 @@ async def retrieve_document_evidence(
     return result
 
 
-@router.post("/ask", response_model=DocumentAnswerResponse)
+@router.post(
+    "/ask",
+    response_model=DocumentAnswerResponse,
+    summary="Ask an evidence-gated policy question",
+    description="Return a supported answer or safe fallback with page-level provenance and confidence.",
+)
 async def ask_document_question(
     answer_request: DocumentAnswerRequest,
 ) -> DocumentAnswerResponse:
@@ -125,7 +135,7 @@ async def ask_document_question(
 
     logger.info(
         "document_answer_generated",
-        question=answer_request.question,
+        question_chars=len(answer_request.question),
         top_k=answer_request.top_k,
         answer_ready=result.answer_ready,
         evidence_status=result.evidence_status,

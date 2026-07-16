@@ -10,7 +10,7 @@ import type {
   OutcomeCardView,
   QualityGateView,
 } from "@/lib/domain/evaluation";
-import { businessLabel } from "@/lib/formatters/evaluation";
+import { evaluationLabel } from "@/lib/formatters/evaluation";
 
 export function EvaluationErrorState({ state }: { state: Extract<EvaluationPageState, { state: "error" }> }) {
   const missing = state.code === "EVALUATION_NOT_FOUND";
@@ -20,7 +20,7 @@ export function EvaluationErrorState({ state }: { state: Extract<EvaluationPageS
       {missing ? (
         <div className="mt-3 rounded-lg border border-current/15 bg-white/60 p-3 font-mono text-xs leading-6 text-neutral-700">
           <div>python eval/validate_dataset.py</div>
-          <div>python eval/run_eval.py --request-delay-seconds 5</div>
+          <div>bash scripts/evaluation/run-compose-eval.sh</div>
         </div>
       ) : (
         <p className="mt-2">The application shell remains available. Check the backend service and artifact, then refresh.</p>
@@ -79,7 +79,11 @@ export function QualityGates({ gates }: { gates: QualityGateView[] }) {
                   <h3 className="text-sm font-semibold text-neutral-900">{gate.label}</h3>
                   <div className="font-metric mt-2 text-xl font-semibold text-neutral-900">{gate.value}</div>
                 </div>
-                <StatusPill status={presentation.status} label={presentation.label} compact />
+                <StatusPill
+                  status={presentation.status}
+                  label={gate.statusLabel ?? presentation.label}
+                  compact
+                />
               </div>
               <p className="mt-2 text-sm leading-5 text-neutral-600">{gate.description}</p>
             </QualityCard>
@@ -94,11 +98,19 @@ export function DiagnosticPill({ diagnostic }: { diagnostic: DiagnosticCategory 
   const passed = diagnostic.startsWith("passed_");
   const provider = diagnostic === "provider_generation_failure";
   return (
-    <StatusPill
-      compact
-      status={passed ? "success" : provider ? "warning" : diagnostic === "request_error" ? "error" : "info"}
-      label={businessLabel(diagnostic)}
-    />
+    <span
+      title={
+        provider
+          ? "Evidence passed, but a generated answer was unavailable."
+          : undefined
+      }
+    >
+      <StatusPill
+        compact
+        status={passed ? "success" : provider ? "warning" : diagnostic === "request_error" ? "error" : "info"}
+        label={evaluationLabel(diagnostic)}
+      />
+    </span>
   );
 }
 

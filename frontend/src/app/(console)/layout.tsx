@@ -1,5 +1,8 @@
+import { AskWorkspaceProvider } from "@/components/ask/ask-workspace-provider";
 import { AppShell } from "@/components/system/app-shell";
 import { getBackendHealth } from "@/lib/api/health";
+import { getBackendReadiness } from "@/lib/api/readiness";
+import { deriveSystemOperationalState } from "@/lib/domain/system";
 import { getPublicAppEnvironment } from "@/lib/environment";
 
 // Console routes depend on live FastAPI state and must never be prerendered
@@ -11,14 +14,18 @@ export default async function ConsoleLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [health, app] = await Promise.all([
+  const [health, readiness, app] = await Promise.all([
     getBackendHealth(),
+    getBackendReadiness(),
     Promise.resolve(getPublicAppEnvironment()),
   ]);
+  const platformStatus = deriveSystemOperationalState(health, readiness).status;
 
   return (
-    <AppShell health={health} app={app}>
-      {children}
-    </AppShell>
+    <AskWorkspaceProvider>
+      <AppShell health={health} app={app} platformStatus={platformStatus}>
+        {children}
+      </AppShell>
+    </AskWorkspaceProvider>
   );
 }

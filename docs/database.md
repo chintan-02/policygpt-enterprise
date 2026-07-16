@@ -65,8 +65,32 @@ Read-only contracts:
 - `GET /api/v1/documents/{document_id}`
 - `GET /api/v1/documents/{document_id}/status`
 
-Step 15A will consume these contracts. Delete, reindex, download, document-scoped
-Ask, and document-management UI are intentionally not part of Step 15.
+The Next.js Documents product consumes these contracts for the registry, detail,
+lifecycle, filtering, pagination, upload, duplicate, and outage states. Delete,
+reindex, source download, and document-scoped Ask remain intentionally unavailable.
+
+## Database readiness
+
+`GET /api/v1/ready` executes a lightweight `SELECT 1` through the existing
+SQLAlchemy engine and closes the connection. Failure maps to a sanitized
+`database: unavailable` state and HTTP 503. The response and logs never include
+the connection URL, credentials, host, port, driver exception text, or stack
+trace.
+
+Database readiness is required for deployment health. Process liveness at
+`GET /api/v1/health` remains independent and returns 200 while PostgreSQL is
+offline, which lets operators distinguish a running API from a ready service.
+
+The connection pool uses pre-ping and bounded pool acquisition. Readiness does
+not create tables; Alembic remains the only schema authority.
+
+## Backup and recovery ownership
+
+PostgreSQL metadata must be backed up consistently with the Chroma volume and
+uploaded source files. A document row without its source or vectors is not a
+complete ingestion record. Named volumes preserve restarts but are not backups.
+See [deployment readiness](deployment-readiness.md) and the
+[operations runbook](operations-runbook.md) for recovery guidance.
 
 ## Resetting pre-PostgreSQL development vectors
 

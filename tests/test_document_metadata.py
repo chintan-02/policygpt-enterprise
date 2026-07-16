@@ -71,7 +71,7 @@ def test_database_configuration_is_safe_and_storage_is_configurable() -> None:
     )
     assert settings.document_storage_dir == "tmp/policy-files"
     assert settings.safe_database_config["driver"] == "postgresql+psycopg"
-    assert settings.safe_database_config["host"] == "localhost"
+    assert "host" not in settings.safe_database_config
     assert "secret" not in repr(settings.safe_database_config)
 
 

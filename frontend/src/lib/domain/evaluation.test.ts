@@ -1,9 +1,14 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   adaptEvaluationArtifact,
   classifyEvaluationCase,
+  evaluationCasePresentation,
   filterEvaluationCases,
   groupCasesBy,
+  prepareConfidenceStatistics,
+  prepareEvaluationIssueGroups,
+  prepareOperationalSummary,
   prepareOutcomeCards,
   prepareProviderStatistics,
   prepareQualityGates,
@@ -11,6 +16,7 @@ import {
   shouldRenderEvaluationCharts,
 } from "./evaluation";
 import {
+  evaluationLabel,
   formatEvaluationDate,
   formatEvaluationPercent,
   formatEvaluationScore,
@@ -212,85 +218,33 @@ describe("evaluation selectors", () => {
     expect(formatEvaluationPercent(0, 0)).toBe("N/A");
   });
 
-  it("shows completeness as not applicable for one provider fallback", () => {
-    const result = adaptEvaluationArtifact(artifact([
+  it("uses the four benchmark and provider metrics from the artifact", () => {
+    const fallbacks = Array.from({ length: 11 }, (_, index) =>
       casePayload({
+        id: `supported_${index + 1}`,
         case_passed: false,
         fallback_used: true,
-        keyword_match_score: 0,
       }),
-    ]));
-
-    const completeness = prepareOutcomeCards(result).find(
-      (item) => item.key === "completeness",
     );
+    const unsupported = Array.from({ length: 5 }, (_, index) =>
+      unsupportedCase({ id: `unsupported_${index + 1}` }),
+    );
+    const result = adaptEvaluationArtifact(artifact([...fallbacks, ...unsupported]));
 
-    expect(completeness).toMatchObject({
-      value: "N/A",
-      status: "neutral",
-      statusLabel: "Not applicable",
-      interpretation:
-        "No generated answers were available for completeness scoring.",
-    });
-  });
-
-  it("shows completeness as not applicable for several provider fallbacks", () => {
-    const result = adaptEvaluationArtifact(artifact([
-      casePayload({ id: "fallback_1", case_passed: false, fallback_used: true, keyword_match_score: 0 }),
-      casePayload({ id: "fallback_2", case_passed: false, fallback_used: true, keyword_match_score: 0 }),
-      casePayload({ id: "fallback_3", case_passed: false, fallback_used: true, keyword_match_score: 0 }),
-    ]));
-
-    expect(
-      prepareOutcomeCards(result).find((item) => item.key === "completeness")?.value,
-    ).toBe("N/A");
-  });
-
-  it("uses the artifact completeness score for a generated answer", () => {
-    const result = adaptEvaluationArtifact(artifact([
-      casePayload({
-        case_passed: false,
-        keyword_match_score: 0.6,
-        matched_keywords: ["CAD 300"],
-        missing_keywords: ["approval"],
+    expect(prepareOutcomeCards(result)).toEqual([
+      expect.objectContaining({ label: "Retrieval page-hit rate", value: "100%" }),
+      expect.objectContaining({ label: "Unsupported fallback accuracy", value: "100%" }),
+      expect.objectContaining({ label: "Answer-readiness accuracy", value: "100%" }),
+      expect.objectContaining({
+        label: "Generated-answer availability",
+        value: "0 / 11",
+        interpretation:
+          "Eleven answer-ready cases used citation-only fallback because generation was unavailable.",
       }),
-    ]));
-
-    expect(
-      prepareOutcomeCards(result).find((item) => item.key === "completeness")?.value,
-    ).toBe("60%");
-  });
-
-  it("limits mixed-run completeness to successfully generated answers", () => {
-    const result = adaptEvaluationArtifact(artifact([
-      casePayload({
-        id: "generated",
-        case_passed: false,
-        keyword_match_score: 0.5,
-        missing_keywords: ["approval"],
-      }),
-      casePayload({
-        id: "provider_fallback",
-        case_passed: false,
-        fallback_used: true,
-        keyword_match_score: 0,
-      }),
-    ]));
-    const cards = prepareOutcomeCards(result);
-
-    expect(cards.find((item) => item.key === "completeness")?.value).toBe("50%");
-    expect(cards.find((item) => item.key === "evidence")).toMatchObject({
-      value: "100%",
-      status: "success",
-    });
-  });
-
-  it("shows completeness as not applicable when there are no supported cases", () => {
-    const result = adaptEvaluationArtifact(artifact([unsupportedCase()]));
-
-    expect(
-      prepareOutcomeCards(result).find((item) => item.key === "completeness"),
-    ).toMatchObject({ value: "N/A", statusLabel: "Not applicable" });
+    ]);
+    expect(prepareOperationalSummary(result)).toBe(
+      "Evidence retrieval found the expected policy pages and unsupported-answer safety passed. All 11 answer-ready cases used citation-only fallback because generated answers were unavailable.",
+    );
   });
 
   it("does not let provider fallback fail evidence quality", () => {
@@ -309,6 +263,28 @@ describe("evaluation selectors", () => {
     const gates = prepareQualityGates(result);
     expect(gates.find((item) => item.key === "retrieval")?.status).toBe("passed");
     expect(gates.find((item) => item.key === "provider")?.status).toBe("needs_attention");
+    expect(gates.find((item) => item.key === "duplicates")).toMatchObject({
+      label: "Duplicate citations",
+      value: "None detected",
+      status: "passed",
+      statusLabel: "Passed",
+      description: "No repeated citation identities were detected.",
+    });
+  });
+
+  it("presents a duplicate citation warning for review without a raw boolean", () => {
+    const payload = artifact();
+    payload.run.duplicate_citation_warning = true;
+    const duplicateGate = prepareQualityGates(
+      adaptEvaluationArtifact(payload),
+    ).find((item) => item.key === "duplicates");
+
+    expect(duplicateGate).toMatchObject({
+      label: "Duplicate citations",
+      value: "Detected",
+      status: "needs_attention",
+      statusLabel: "Needs review",
+    });
   });
 
   it("calculates provider availability from eligible cases", () => {
@@ -337,8 +313,8 @@ describe("evaluation selectors", () => {
   it("groups chart data and selects drawer cases from URL state", () => {
     const result = adaptEvaluationArtifact(artifact([casePayload(), unsupportedCase()]));
     expect(groupCasesBy(result.results, "category")).toEqual([
-      { name: "remote_work", passed: 1, review: 0, total: 1 },
-      { name: "unsupported", passed: 1, review: 0, total: 1 },
+      { name: "Remote Work", passed: 1, review: 0, failed: 0, total: 1 },
+      { name: "Unsupported", passed: 1, review: 0, failed: 0, total: 1 },
     ]);
     expect(selectCaseFromSearch(result.results, "unsupported_001")?.id).toBe("unsupported_001");
     expect(selectCaseFromSearch(result.results, "missing")).toBeNull();
@@ -348,5 +324,157 @@ describe("evaluation selectors", () => {
     expect(formatEvaluationDate("not-a-date")).toBe("N/A");
     expect(formatEvaluationScore(null)).toBe("N/A");
     expect(formatEvaluationScore(0.6471, 4)).toBe("0.6471");
+  });
+
+  it("separates provider fallback from evidence and safety outcomes", () => {
+    const fallback = adaptEvaluationArtifact(artifact([
+      casePayload({ case_passed: false, fallback_used: true }),
+    ])).results[0];
+    const presentation = evaluationCasePresentation(fallback);
+
+    expect(presentation.evidence).toEqual({ label: "Answer-ready", status: "success" });
+    expect(presentation.provider).toEqual({
+      label: "Citation-only fallback",
+      status: "warning",
+    });
+    expect(presentation.overall).toEqual({
+      label: "Review provider",
+      status: "warning",
+    });
+  });
+
+  it("keeps a correct unsupported fallback passed", () => {
+    const unsupported = adaptEvaluationArtifact(
+      artifact([unsupportedCase()]),
+    ).results[0];
+
+    expect(evaluationCasePresentation(unsupported)).toMatchObject({
+      evidence: { label: "Insufficient evidence" },
+      safety: { label: "Passed unsupported fallback", status: "success" },
+      overall: { label: "Passed", status: "success" },
+    });
+  });
+
+  it("groups eleven provider warnings instead of repeating case rows", () => {
+    const fallbacks = Array.from({ length: 11 }, (_, index) =>
+      casePayload({
+        id: `supported_${index + 1}`,
+        case_passed: false,
+        fallback_used: true,
+      }),
+    );
+    const unsupported = Array.from({ length: 5 }, (_, index) =>
+      unsupportedCase({ id: `unsupported_${index + 1}` }),
+    );
+    const groups = prepareEvaluationIssueGroups(
+      adaptEvaluationArtifact(artifact([...fallbacks, ...unsupported])),
+    );
+    const provider = groups.find((item) => item.key === "provider");
+
+    expect(provider).toMatchObject({
+      title: "Provider generation unavailable",
+      count: 11,
+      status: "warning",
+    });
+    expect(groups.filter((item) => item.key === "provider")).toHaveLength(1);
+    expect(provider?.caseIds).toHaveLength(11);
+  });
+
+  it("uses supported confidence and precise flag denominators", () => {
+    const result = adaptEvaluationArtifact(
+      artifact([
+        casePayload({ numeric_mismatch: true }),
+        casePayload({ id: "scope", scope_risk: true }),
+        unsupportedCase(),
+      ]),
+    );
+    const stats = prepareConfidenceStatistics(result);
+
+    expect(stats.averageSupportedConfidence).toBe(0.8);
+    expect(stats.supportedCaseCount).toBe(2);
+    expect(stats.answerReadyCount).toBe(2);
+    expect(stats.totalCaseCount).toBe(3);
+    expect(stats.numericMismatchCount).toBe(1);
+    expect(stats.scopeRiskCount).toBe(1);
+    expect(stats.directSupportCount).toBe(2);
+  });
+
+  it("humanizes technical category and diagnostic values", () => {
+    expect(evaluationLabel("ai_privacy")).toBe("AI Privacy");
+    expect(evaluationLabel("information_security")).toBe("Information Security");
+    expect(evaluationLabel("unsupported_private_information")).toBe(
+      "Unsupported Private Information",
+    );
+    expect(evaluationLabel("provider_generation_failure")).toContain(
+      "Provider unavailable",
+    );
+    expect(evaluationLabel("passed_unsupported_fallback")).toBe(
+      "Unsupported fallback passed",
+    );
+  });
+
+  it("separates amber provider review bars from failed quality gates", () => {
+    const result = adaptEvaluationArtifact(
+      artifact([
+        casePayload({
+          id: "provider_review",
+          category: "ai_privacy",
+          case_passed: false,
+          fallback_used: true,
+        }),
+        casePayload({
+          id: "retrieval_failure",
+          category: "information_security",
+          case_passed: false,
+          page_hit: false,
+        }),
+      ]),
+    );
+
+    expect(groupCasesBy(result.results, "category")).toEqual([
+      {
+        name: "AI Privacy",
+        passed: 0,
+        review: 1,
+        failed: 0,
+        total: 1,
+      },
+      {
+        name: "Information Security",
+        passed: 0,
+        review: 0,
+        failed: 1,
+        total: 1,
+      },
+    ]);
+  });
+
+  it("uses clear provider wording without rendering credentials or provider URLs", () => {
+    const providerPage = readFileSync(
+      new URL(
+        "../../app/(console)/evaluations/provider/page.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(providerPage).toContain("Observed generation mode");
+    expect(providerPage).toContain("Citation-only fallback");
+    expect(providerPage).not.toContain("stats.primaryProvider");
+    expect(providerPage).not.toMatch(/API_KEY|BASE_URL|https:\/\/api\./);
+  });
+
+  it("uses horizontal charts with separate warning and failure colors", () => {
+    const charts = readFileSync(
+      new URL(
+        "../../components/features/evaluations/evaluation-charts.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(charts).toContain('layout="vertical"');
+    expect(charts).toContain('fill="var(--warning-700)"');
+    expect(charts).toContain('fill="var(--error-700)"');
   });
 });
