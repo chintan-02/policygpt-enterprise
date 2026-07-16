@@ -1,0 +1,173 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+    max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-policygpt}
+      POSTGRES_USER: ${POSTGRES_USER:-policygpt}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - policygpt_network
+    logging: *default-logging
+
+  migrate:
+    image: policygpt-backend:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
+        EMBEDDING_MODEL_REVISION: ${EMBEDDING_MODEL_REVISION:-1110a243fdf4706b3f48f1d95db1a4f5529b4d41}
+    command: ["alembic", "upgrade", "head"]
+    environment: &backend-environment
+      APP_NAME: ${APP_NAME:-PolicyGPT Enterprise}
+      APP_ENV: ${APP_ENV:-production}
+      APP_VERSION: ${APP_VERSION:-0.3.0}
+      DEBUG: ${DEBUG:-false}
+      API_PREFIX: ${API_PREFIX:-/api/v1}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENABLE_RAG_QUERY_LOGGING: ${ENABLE_RAG_QUERY_LOGGING:-true}
+      RAG_QUERY_LOG_PATH: ${RAG_QUERY_LOG_PATH:-/app/logs/rag_queries.jsonl}
+      RAG_LOG_INCLUDE_QUESTION: ${RAG_LOG_INCLUDE_QUESTION:-false}
+      POLICYGPT_EVAL_RESULTS_PATH: ${POLICYGPT_EVAL_RESULTS_PATH:-/app/eval/results/latest_eval_results.json}
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: 8000
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      MAX_PDF_UPLOAD_SIZE_MB: ${MAX_PDF_UPLOAD_SIZE_MB:-10}
+      TEXT_CHUNK_SIZE_CHARS: ${TEXT_CHUNK_SIZE_CHARS:-1200}
+      TEXT_CHUNK_OVERLAP_CHARS: ${TEXT_CHUNK_OVERLAP_CHARS:-200}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
+      CHROMA_PERSIST_DIRECTORY: /app/data/chroma
+      CHROMA_COLLECTION_NAME: ${CHROMA_COLLECTION_NAME:-policygpt_documents}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-policygpt}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-policygpt}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-5}
+      DATABASE_POOL_TIMEOUT_SECONDS: ${DATABASE_POOL_TIMEOUT_SECONDS:-30}
+      DATABASE_ECHO: ${DATABASE_ECHO:-false}
+      DOCUMENT_STORAGE_DIR: /app/data/uploads
+      SEARCH_TOP_K_DEFAULT: ${SEARCH_TOP_K_DEFAULT:-5}
+      MIN_RETRIEVAL_SCORE: ${MIN_RETRIEVAL_SCORE:-0.45}
+      RAG_CANDIDATE_RETRIEVAL_FLOOR: ${RAG_CANDIDATE_RETRIEVAL_FLOOR:-0.30}
+      RAG_DIRECT_SUPPORT_SCORE_FLOOR: ${RAG_DIRECT_SUPPORT_SCORE_FLOOR:-0.35}
+      RAG_DIRECT_SUPPORT_COVERAGE_MIN: ${RAG_DIRECT_SUPPORT_COVERAGE_MIN:-0.60}
+      RAG_WEAK_CONFIDENCE_THRESHOLD: ${RAG_WEAK_CONFIDENCE_THRESHOLD:-0.40}
+      RAG_MODERATE_CONFIDENCE_THRESHOLD: ${RAG_MODERATE_CONFIDENCE_THRESHOLD:-0.55}
+      RAG_STRONG_CONFIDENCE_THRESHOLD: ${RAG_STRONG_CONFIDENCE_THRESHOLD:-0.75}
+      RAG_CONFIDENCE_MAX_EVIDENCE_CHUNKS: ${RAG_CONFIDENCE_MAX_EVIDENCE_CHUNKS:-3}
+      CITATION_EXCERPT_MAX_CHARS: ${CITATION_EXCERPT_MAX_CHARS:-450}
+      LLM_EVIDENCE_MAX_CHARS: ${LLM_EVIDENCE_MAX_CHARS:-1200}
+      MAX_CITATION_CARDS: ${MAX_CITATION_CARDS:-5}
+      ENABLE_LLM_ANSWER: ${ENABLE_LLM_ANSWER:-true}
+      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+      LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-700}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.1}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
+      LLM_RETRY_BASE_DELAY_SECONDS: ${LLM_RETRY_BASE_DELAY_SECONDS:-1.0}
+      LLM_RETRY_MAX_DELAY_SECONDS: ${LLM_RETRY_MAX_DELAY_SECONDS:-5.0}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_BASE_URL: ${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
+      GROQ_MODEL_NAME: ${GROQ_MODEL_NAME:-llama-3.3-70b-versatile}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL_NAME: ${OPENAI_MODEL_NAME:-gpt-4o-mini}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - policygpt_network
+    logging: *default-logging
+
+  backend:
+    image: policygpt-backend:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
+        EMBEDDING_MODEL_REVISION: ${EMBEDDING_MODEL_REVISION:-1110a243fdf4706b3f48f1d95db1a4f5529b4d41}
+    init: true
+    environment: *backend-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT:-8000}:8000"
+    volumes:
+      - chroma_data:/app/data/chroma
+      - uploads_data:/app/data/uploads
+      - logs_data:/app/logs
+      - evaluation_results_data:/app/eval/results
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=5); response.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - policygpt_network
+    logging: *default-logging
+
+  frontend:
+    image: policygpt-frontend:local
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-PolicyGPT Enterprise}
+        NEXT_PUBLIC_APP_VERSION: ${NEXT_PUBLIC_APP_VERSION:-0.3.0}
+        NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-Local}
+    init: true
+    environment:
+      FASTAPI_URL: http://backend:8000
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-PolicyGPT Enterprise}
+      NEXT_PUBLIC_APP_VERSION: ${NEXT_PUBLIC_APP_VERSION:-0.3.0}
+      NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-Local}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - policygpt_network
+    logging: *default-logging
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-policygpt_postgres_data}
+  chroma_data:
+    name: ${CHROMA_VOLUME_NAME:-policygpt_chroma_data}
+  uploads_data:
+    name: ${UPLOADS_VOLUME_NAME:-policygpt_uploads_data}
+  logs_data:
+    name: ${LOGS_VOLUME_NAME:-policygpt_logs_data}
+  evaluation_results_data:
+    name: ${EVALUATION_RESULTS_VOLUME_NAME:-policygpt_evaluation_results_data}
+
+networks:
+  policygpt_network:
+    driver: bridge

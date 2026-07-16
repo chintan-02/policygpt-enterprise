@@ -10,7 +10,7 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 
 ## Project Status
 
-**Current phase:** Step 15A — Real Documents product
+**Current phase:** Phase 2, Step 16 — Reproducible Docker Compose deployment
 
 ### Completed
 
@@ -45,11 +45,13 @@ This is not a generic PDF chatbot. It is designed as an enterprise-style **Compl
 * Real Next.js Documents registry, PDF upload, and document detail routes
 * URL-backed filename search, status filters, and backend pagination
 * Truthful ingestion lifecycle, duplicate, processing, failure, and outage states
+* Reproducible four-service Docker Compose deployment with migration gating
+* Non-root FastAPI and Next.js production images
+* Persistent named volumes for PostgreSQL, ChromaDB, uploads, logs, and evaluations
 
 ### Planned Later
 
 * Persistent evaluation history
-* Docker Compose
 * Multi-document comparison
 * Compliance report generation
 * Cloud deployment
@@ -518,8 +520,19 @@ policygpt-enterprise/
 │
 ├── docs/
 │   ├── api_examples.md
+│   ├── database.md
 │   ├── demo_script.md
+│   ├── docker-compose.md
 │   └── smoke_test_checklist.md
+│
+├── frontend/
+│   ├── Dockerfile
+│   └── src/
+│
+├── scripts/
+│   └── compose/
+│       ├── import-local-data.sh
+│       └── smoke-test.sh
 │
 ├── examples/
 │   └── sample_hr_policy.pdf
@@ -534,6 +547,8 @@ policygpt-enterprise/
 │   └── chroma/
 │
 ├── .env.example
+├── .env.compose.example
+├── compose.yaml
 ├── .gitignore
 ├── Dockerfile
 ├── requirements.txt
@@ -606,6 +621,10 @@ POLICYGPT_EVAL_RESULTS_PATH=eval/results/latest_eval_results.json
 
 Do not commit your real `.env` file.
 
+Compose uses a separate ignored `.env.compose` file. See
+[Docker Compose local deployment](docs/docker-compose.md) for every setting,
+persistence behavior, safe existing-volume reuse, and recovery procedures.
+
 ---
 
 ## Installation
@@ -616,6 +635,27 @@ source .venv/bin/activate
 
 pip install -r requirements.txt
 ```
+
+### Run the complete stack with Docker Compose
+
+Docker Compose is the reproducible local deployment path for the PostgreSQL,
+migration, FastAPI, and Next.js services:
+
+```bash
+cp .env.compose.example .env.compose
+# Replace the example database password before continuing.
+docker compose --env-file .env.compose build
+docker compose --env-file .env.compose up -d
+scripts/compose/smoke-test.sh
+```
+
+The migration service must exit successfully before FastAPI starts. Named
+volumes preserve application data across `docker compose down` and image
+rebuilds. Do not use `down --volumes` unless a permanent reset is intended.
+With a configured Groq or OpenAI key, supported questions can generate answers;
+without a provider key, the existing citation-only fallback keeps retrieval and
+evidence available safely.
+The complete runbook is in [docs/docker-compose.md](docs/docker-compose.md).
 
 ---
 
@@ -797,7 +837,8 @@ This helps reduce hallucination risk and makes the system more suitable for HR, 
 
 ## Current Limitations
 
-This is still a Phase 1 MVP.
+This remains a local portfolio deployment rather than a hosted production
+service.
 
 Current limitations:
 
@@ -806,7 +847,7 @@ Current limitations:
 * no document deletion endpoint yet
 * no multi-document comparison yet
 * no OCR for scanned PDFs yet
-* no production deployment yet
+* no cloud-production deployment, TLS termination, or external secrets manager
 
 These are intentionally deferred until after the core RAG flow is working.
 
@@ -832,7 +873,7 @@ These are intentionally deferred until after the core RAG flow is working.
 * confidence analytics
 * evaluation dashboard
 * PostgreSQL metadata
-* Docker Compose
+* Docker Compose local deployment (complete)
 * logging for latency, retrieval score, and token usage
 
 ### Phase 3 — Advanced
