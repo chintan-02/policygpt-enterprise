@@ -6,6 +6,12 @@ PolicyGPT Enterprise is a production-style evidence intelligence and policy RAG 
 
 This repository is a portfolio engineering system, not a finished enterprise SaaS or a cloud-production claim. Its focus is the difficult space between a working RAG prototype and an operable product: document identity, provenance, calibrated confidence, controlled failure, evaluation, and release-like deployment.
 
+**Current release:** [v0.3.0](https://github.com/chintan-02/policygpt-enterprise/releases/tag/v0.3.0) · **Repository status:** verified local release profile · **Portfolio:** [live case study](https://chintan-patel-ai.netlify.app/case-studies/policygpt-enterprise)
+
+<img src="screenshots/v0.3.0/01-policygpt-citation-backed-answer.png" alt="PolicyGPT Enterprise citation-backed policy answer with calibrated confidence and page-level evidence" width="900" />
+
+*Evidence-backed remote-work policy answer with calibrated confidence and page-level source citations.*
+
 ## The problem
 
 Policy answers are consequential. A fluent response without provenance is difficult to review, and a generic “upload a PDF and chat” workflow usually leaves important questions unanswered:
@@ -34,25 +40,43 @@ PolicyGPT makes those concerns part of the product contract.
 
 ## Product views
 
-These are real repository screenshots; no generated dashboards or invented metrics are used.
+These verified v0.3.0 captures come from the running local application; no generated dashboards, cloud-deployment claims, or invented metrics are used. See the [complete screenshot gallery](screenshots/v0.3.0/README.md) for all 13 release captures.
 
-### Document ingestion
+### Controlled document ingestion
 
-<img src="screenshots/01-dashboard-upload.png" alt="PolicyGPT document ingestion view" width="900" />
+<img src="screenshots/v0.3.0/12-policygpt-upload-workflow.png" alt="PolicyGPT Enterprise controlled PDF upload and synchronous evidence-indexing workflow" width="100%" />
 
-### Citation-backed policy answer
+*Controlled PDF-ingestion workflow connecting persistent metadata, source storage, extraction, embedding generation, and synchronous evidence indexing.*
 
-<img src="screenshots/02-citation-backed-answer.png" alt="PolicyGPT answer with page-level evidence" width="900" />
+### Persistent document lifecycle
 
-### Unsupported-question handling
+<img src="screenshots/v0.3.0/04-policygpt-document-registry.png" alt="PolicyGPT Enterprise persistent document registry and lifecycle metadata" width="100%" />
 
-<img src="screenshots/04-unsupported-fallback.png" alt="PolicyGPT safe unsupported-question response" width="900" />
+*Persistent document registry connecting PostgreSQL lifecycle metadata, original PDF storage, and ChromaDB evidence indexing.*
 
-### Evidence diagnostics
+### Explainable evidence diagnostics
 
-<img src="screenshots/05-evidence-explorer.png" alt="PolicyGPT evidence diagnostics" width="900" />
+<img src="screenshots/v0.3.0/02-policygpt-evidence-confidence-diagnostics.png" alt="PolicyGPT Enterprise explainable evidence and confidence diagnostics" width="100%" />
 
-The current Next.js product also includes Documents, Ask, Evaluation, and System views. New release screenshots should be captured from the real running application before replacing these committed images.
+*Explainable answerability diagnostics showing retrieval strength, lexical coverage, direct support, scope risk, provider state, and page-level evidence.*
+
+### Unsupported-answer safety
+
+<img src="screenshots/v0.3.0/03-policygpt-unsupported-answer-fallback.png" alt="PolicyGPT Enterprise controlled unsupported-answer fallback" width="100%" />
+
+*Controlled unsupported-answer state that blocks generation when indexed policies provide no usable evidence.*
+
+### Controlled evaluation
+
+<img src="screenshots/v0.3.0/06-policygpt-evaluation-overview.png" alt="PolicyGPT Enterprise controlled RAG evaluation overview" width="100%" />
+
+*Controlled RAG benchmark showing retrieval quality, unsupported-answer safety, provider availability, and production-style quality gates.*
+
+### Operational readiness
+
+<img src="screenshots/v0.3.0/10-policygpt-system-readiness.png" alt="PolicyGPT Enterprise dependency-aware local system readiness" width="100%" />
+
+*Dependency-aware system status separating process liveness, PostgreSQL and ChromaDB readiness, provider configuration, and honest production boundaries.*
 
 ## Core workflow
 
@@ -129,6 +153,8 @@ If evidence is insufficient, PolicyGPT does not ask a model to improvise. If evi
 
 The checked-in dataset contains 16 questions: 11 supported and 5 unsupported. It validates readiness decisions, fallback behavior, expected pages, keyword coverage, citations, confidence diagnostics, and provider behavior. Dataset metrics describe this benchmark only; they are not production accuracy or latency claims.
 
+The committed v0.3.0 evaluation capture was produced from the running local application with answer generation disabled. All 11 supported cases remained answer-ready and preserved citation evidence through citation-only fallback, while all 5 unsupported cases returned the expected zero-citation fallback. Because the run produced no generated answers, generated-answer content and keyword quality were not validated.
+
 ```bash
 python eval/validate_dataset.py
 bash scripts/evaluation/run-compose-eval.sh
@@ -191,9 +217,9 @@ See [deployment readiness](docs/deployment-readiness.md) and the [operations run
 | --- | --- |
 | API | Python 3.13, FastAPI, Pydantic v2, structlog |
 | Persistence | PostgreSQL 16, SQLAlchemy 2.x, psycopg, Alembic |
-| RAG | SentenceTransformers, ChromaDB, PyMuPDF |
+| RAG | `sentence-transformers/all-MiniLM-L6-v2`, embedded persistent ChromaDB, PyMuPDF |
 | Generation | Groq or OpenAI-compatible API with citation-only fallback |
-| Product | Next.js 16, React 19, TypeScript, Tailwind CSS, shadcn/Base UI |
+| Product | Next.js 16.2.10, React 19.2.4, TypeScript, Tailwind CSS, shadcn/Base UI |
 | Release | Docker Compose, non-root images, health checks, named volumes |
 | Quality | pytest, Vitest, ESLint, production builds, custom RAG evaluation |
 
@@ -203,6 +229,7 @@ See [deployment readiness](docs/deployment-readiness.md) and the [operations run
 app/                    FastAPI routes, services, schemas, database layer
 alembic/                PostgreSQL schema migrations
 frontend/               Next.js product and server-side BFF
+ui/                     Retained Streamlit QA and architecture console
 eval/                   Evaluation dataset, runner, scoring, artifacts
 scripts/compose/         Safe Compose smoke and import workflows
 scripts/release/         Preflight and release verification
@@ -269,17 +296,20 @@ npm run dev
 | `GET /api/v1/ready` | PostgreSQL and Chroma deployment readiness |
 | `POST /api/v1/documents/upload` | Validate and synchronously ingest one PDF |
 | `GET /api/v1/documents` | Paginated document registry |
-| `GET /api/v1/documents/{id}` | Safe document details |
+| `GET /api/v1/documents/{document_id}` | Safe document details |
+| `GET /api/v1/documents/{document_id}/status` | Ingestion lifecycle status |
+| `POST /api/v1/documents/search` | Retrieve indexed document evidence |
 | `POST /api/v1/documents/evidence` | Retrieve and assess evidence |
 | `POST /api/v1/documents/ask` | Evidence-gated answer or fallback |
 | `GET /api/v1/evaluations/latest` | Latest validated evaluation artifact |
+| `GET /api/v1/evaluations/latest.csv` | Download the latest validated case results |
 
 ## Testing and release validation
 
-Verified release baseline after this hardening step:
+Verified v0.3.0 local release baseline:
 
-- 229 backend tests
-- 112 frontend tests
+- 230 backend tests
+- 128 frontend tests across 12 Vitest files
 - 16-question dataset validation
 - frontend lint and production build
 - Compose configuration and four-service health verification
@@ -332,4 +362,4 @@ Reasonable next steps are authenticated tenant boundaries, asynchronous ingestio
 
 ## Portfolio summary
 
-PolicyGPT demonstrates end-to-end RAG engineering beyond prompt assembly: durable data modeling, evidence and confidence design, provider resilience, evaluation, product UX, API contracts, operational hardening, and release-like deployment. The [portfolio case study](docs/portfolio-case-study.md) explains the engineering decisions; the [demo guide](docs/demo-guide.md) provides 90-second, 3-minute, and 7-minute walkthroughs.
+PolicyGPT demonstrates end-to-end RAG engineering beyond prompt assembly: durable data modeling, evidence and confidence design, provider resilience, evaluation, product UX, API contracts, operational hardening, and release-like deployment. Read the [repository engineering case study](docs/portfolio-case-study.md), the [live portfolio case study](https://chintan-patel-ai.netlify.app/case-studies/policygpt-enterprise), or the [demo guide](docs/demo-guide.md) with 90-second, 3-minute, and 7-minute walkthroughs.

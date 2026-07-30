@@ -6,6 +6,7 @@ export function MetricValue({
   numerator,
   denominator,
   size = "md",
+  allowWrap = false,
   className,
 }: {
   value?: string | number;
@@ -13,6 +14,7 @@ export function MetricValue({
   numerator?: string | number;
   denominator?: string | number;
   size?: "sm" | "md" | "lg";
+  allowWrap?: boolean;
   className?: string;
 }) {
   const sizeClass = {
@@ -36,7 +38,15 @@ export function MetricValue({
           <span>{denominator}</span>
         </>
       ) : (
-        <span className="truncate">{value}</span>
+        <span
+          className={cn(
+            allowWrap
+              ? "whitespace-normal break-words leading-tight"
+              : "truncate",
+          )}
+        >
+          {value}
+        </span>
       )}
       {unit ? (
         <span className="text-[0.48em] font-medium tracking-normal text-neutral-500">

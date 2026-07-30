@@ -23,6 +23,7 @@ export function QualityCard({
   statusLabel,
   icon: Icon,
   children,
+  allowValueWrap = false,
   className,
 }: {
   tier?: "outcome" | "secondary" | "engineering";
@@ -33,6 +34,7 @@ export function QualityCard({
   statusLabel?: string;
   icon?: LucideIcon;
   children?: React.ReactNode;
+  allowValueWrap?: boolean;
   className?: string;
 }) {
   return (
@@ -62,7 +64,13 @@ export function QualityCard({
           ) : null}
         </div>
       ) : null}
-      {value ? <MetricValue value={value} className="mt-4" /> : null}
+      {value ? (
+        <MetricValue
+          value={value}
+          allowWrap={allowValueWrap}
+          className="mt-4"
+        />
+      ) : null}
       {status ? (
         <StatusPill status={status} label={statusLabel} className="mt-3" />
       ) : null}

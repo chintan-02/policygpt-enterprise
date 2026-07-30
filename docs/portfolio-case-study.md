@@ -6,6 +6,8 @@ PolicyGPT Enterprise is a production-style evidence intelligence and policy RAG 
 
 The intended audiences are HR and policy reviewers, compliance or governance teams, and engineers who need to understand why an answer was allowed or rejected. The project is a portfolio system rather than a commercial deployment.
 
+This repository document records the engineering detail behind the [live portfolio case study](https://chintan-patel-ai.netlify.app/case-studies/policygpt-enterprise).
+
 ## Problem and requirements
 
 Generic document chat demos optimize for a fluent answer. Policy work needs a stronger contract: durable document identity, reviewable evidence, unsupported-question handling, and safe failure when optional generation is unavailable.
@@ -45,6 +47,8 @@ The repository contains 16 questions: 11 expected to be supported and 5 expected
 
 Dataset results are regression evidence for this controlled benchmark, not production accuracy or service-level claims.
 
+The committed v0.3.0 capture ran locally with answer generation disabled. All 11 supported cases remained answer-ready and retained citation evidence through citation-only fallback, but generated-answer content and keyword quality were not validated because the run produced no generated answers. All 5 unsupported cases returned the expected zero-citation fallback.
+
 ## PostgreSQL metadata design
 
 PostgreSQL is the source of truth for UUID identity, original and safe filenames, content type, byte size, SHA-256, storage key, processing state, counts, model/collection metadata, safe failure details, and timestamps. It does not store PDF bytes, extracted text, chunks, embeddings, prompts, or answers.
@@ -83,7 +87,7 @@ Each solution was tested at the boundary where it could fail rather than hidden 
 
 ## Validation evidence
 
-- 229 backend tests and 112 frontend tests
+- 230 backend tests and 128 frontend tests across 12 Vitest files
 - validated 16-question evaluation dataset
 - frontend lint and production build
 - Compose configuration with exactly PostgreSQL, migrate, backend, and frontend services
