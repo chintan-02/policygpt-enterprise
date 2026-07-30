@@ -8,9 +8,11 @@ This repository is a portfolio engineering system, not a finished enterprise Saa
 
 **Current release:** [v0.3.0](https://github.com/chintan-02/policygpt-enterprise/releases/tag/v0.3.0) · **Repository status:** verified local release profile · **Portfolio:** [live case study](https://chintan-patel-ai.netlify.app/case-studies/policygpt-enterprise)
 
-<img src="screenshots/v0.3.0/01-policygpt-citation-backed-answer.png" alt="PolicyGPT Enterprise citation-backed policy answer with calibrated confidence and page-level evidence" width="900" />
+<img src="screenshots/v0.3.0/01-policygpt-citation-backed-answer.png" alt="PolicyGPT Enterprise citation-backed policy answer with calibrated confidence and page-level evidence" width="100%" />
 
 *Evidence-backed remote-work policy answer with calibrated confidence and page-level source citations.*
+
+[Problem](#the-problem) · [Engineering ownership](#what-i-engineered) · [Architecture](#architecture) · [RAG design](#rag-and-evidence-design) · [Evaluation](#evaluation-framework) · [Deployment](#deployment-architecture) · [Run locally](#quick-start-with-docker-compose) · [Validation](#testing-and-release-validation) · [Limitations](#current-limitations-and-roadmap)
 
 ## The problem
 
@@ -38,57 +40,17 @@ PolicyGPT makes those concerns part of the product contract.
 | Quality | A versioned 16-question evaluation dataset and repeatable scoring workflow |
 | Operations | Request IDs, structured logs, liveness/readiness separation, migrations, and health-gated Compose startup |
 
-## Product views
+## What I engineered
 
-These verified v0.3.0 captures come from the running local application; no generated dashboards, cloud-deployment claims, or invented metrics are used. See the [complete screenshot gallery](screenshots/v0.3.0/README.md) for all 13 release captures.
-
-### Controlled document ingestion
-
-<img src="screenshots/v0.3.0/12-policygpt-upload-workflow.png" alt="PolicyGPT Enterprise controlled PDF upload and synchronous evidence-indexing workflow" width="100%" />
-
-*Controlled PDF-ingestion workflow connecting persistent metadata, source storage, extraction, embedding generation, and synchronous evidence indexing.*
-
-### Persistent document lifecycle
-
-<img src="screenshots/v0.3.0/04-policygpt-document-registry.png" alt="PolicyGPT Enterprise persistent document registry and lifecycle metadata" width="100%" />
-
-*Persistent document registry connecting PostgreSQL lifecycle metadata, original PDF storage, and ChromaDB evidence indexing.*
-
-### Explainable evidence diagnostics
-
-<img src="screenshots/v0.3.0/02-policygpt-evidence-confidence-diagnostics.png" alt="PolicyGPT Enterprise explainable evidence and confidence diagnostics" width="100%" />
-
-*Explainable answerability diagnostics showing retrieval strength, lexical coverage, direct support, scope risk, provider state, and page-level evidence.*
-
-### Unsupported-answer safety
-
-<img src="screenshots/v0.3.0/03-policygpt-unsupported-answer-fallback.png" alt="PolicyGPT Enterprise controlled unsupported-answer fallback" width="100%" />
-
-*Controlled unsupported-answer state that blocks generation when indexed policies provide no usable evidence.*
-
-### Controlled evaluation
-
-<img src="screenshots/v0.3.0/06-policygpt-evaluation-overview.png" alt="PolicyGPT Enterprise controlled RAG evaluation overview" width="100%" />
-
-*Controlled RAG benchmark showing retrieval quality, unsupported-answer safety, provider availability, and production-style quality gates.*
-
-### Operational readiness
-
-<img src="screenshots/v0.3.0/10-policygpt-system-readiness.png" alt="PolicyGPT Enterprise dependency-aware local system readiness" width="100%" />
-
-*Dependency-aware system status separating process liveness, PostgreSQL and ChromaDB readiness, provider configuration, and honest production boundaries.*
-
-## Core workflow
-
-1. Upload a PDF through the Next.js Documents product.
-2. Validate the file, hash it, and prevent duplicate ingestion.
-3. Store the source PDF under a generated key and track its lifecycle in PostgreSQL.
-4. Extract and clean page-aware text, then create metadata-rich chunks.
-5. Generate local SentenceTransformer embeddings and persist them in ChromaDB.
-6. Ask a policy question through the server-side BFF.
-7. Retrieve candidates, assess direct support, numeric consistency, and scope risk.
-8. Generate only when evidence is answer-ready; otherwise return a controlled unsupported state.
-9. Return an answer or provider-safe fallback with page citations and calibrated confidence.
+- I built a modular FastAPI evidence API with explicit route, schema, service, persistence, and failure boundaries.
+- I implemented page-aware PDF extraction, text cleaning, metadata-rich chunking, and bounded synchronous ingestion.
+- I integrated local SentenceTransformer embeddings with persistent ChromaDB evidence indexing and retrieval.
+- I coordinated PostgreSQL lifecycle metadata, SHA-256 document identity, and atomic local source PDF storage.
+- I implemented evidence gating, page-level citations, controlled unsupported-answer rejection, and provider-unavailable citation-only fallback.
+- I designed answerability and confidence diagnostics covering retrieval strength, lexical coverage, numeric consistency, direct support, and scope risk.
+- I built the Next.js console and server-side BFF with validated contracts, safe upstream errors, and server-only configuration.
+- I created the controlled RAG evaluation workflow and provider-reliability diagnostics for supported and unsupported cases.
+- I added structured logging, request IDs, liveness/readiness separation, migrations, health-gated Docker Compose startup, and release verification.
 
 ## Architecture
 
@@ -129,7 +91,23 @@ flowchart LR
     MIG --> PG
 ```
 
+**Ingestion path:** validation → document identity → source storage → extraction → chunking → embeddings → ChromaDB.
+
+**Question path:** retrieval → answerability gate → generation, citation-only fallback, or unsupported rejection.
+
 The browser never receives `FASTAPI_URL`, database credentials, storage paths, or provider keys. The BFF normalizes upstream errors and disables caching for live product data.
+
+## Core workflow
+
+1. Upload a PDF through the Next.js Documents product.
+2. Validate the file, hash it, and prevent duplicate ingestion.
+3. Store the source PDF under a generated key and track its lifecycle in PostgreSQL.
+4. Extract and clean page-aware text, then create metadata-rich chunks.
+5. Generate local SentenceTransformer embeddings and persist them in ChromaDB.
+6. Ask a policy question through the server-side BFF.
+7. Retrieve candidates, assess direct support, numeric consistency, and scope risk.
+8. Generate only when evidence is answer-ready; otherwise return a controlled unsupported state.
+9. Return an answer or provider-safe fallback with page citations and calibrated confidence.
 
 ## RAG and evidence design
 
@@ -148,6 +126,37 @@ question
 The confidence layer considers retrieval strength, margin, lexical coverage, numeric consistency, direct support, and external-authority risk. Retrieval similarity remains an engineering signal; it is not presented as a probability.
 
 If evidence is insufficient, PolicyGPT does not ask a model to improvise. If evidence is sufficient but Groq/OpenAI cannot be used, it returns the citation evidence with a truthful provider-fallback state.
+
+See the [complete verified v0.3.0 screenshot gallery](screenshots/v0.3.0/README.md) for all 13 repository captures.
+
+<img src="screenshots/v0.3.0/02-policygpt-evidence-confidence-diagnostics.png" alt="PolicyGPT Enterprise explainable evidence and confidence diagnostics" width="100%" />
+
+*Explainable answerability diagnostics showing retrieval strength, lexical coverage, direct support, scope risk, provider state, and page-level evidence.*
+
+<img src="screenshots/v0.3.0/03-policygpt-unsupported-answer-fallback.png" alt="PolicyGPT Enterprise controlled unsupported-answer fallback" width="100%" />
+
+*Controlled unsupported-answer state that blocks generation when indexed policies provide no usable evidence.*
+
+## Documents product
+
+PostgreSQL is the source of truth for document identity, safe metadata, and lifecycle state. Source files and Chroma vectors remain separate persisted assets. The product supports:
+
+- PDF upload with bounded validation
+- atomic source storage
+- SHA-256 duplicate prevention
+- processing, ready, failed, and outage states
+- document registry search, status filters, and pagination
+- lifecycle and safe detail views
+
+Deletion, reindexing, document-scoped Ask, and multi-document comparison are intentionally outside the current scope.
+
+<img src="screenshots/v0.3.0/12-policygpt-upload-workflow.png" alt="PolicyGPT Enterprise controlled PDF upload and synchronous evidence-indexing workflow" width="100%" />
+
+*Controlled PDF-ingestion workflow connecting persistent metadata, source storage, extraction, embedding generation, and synchronous evidence indexing.*
+
+<img src="screenshots/v0.3.0/04-policygpt-document-registry.png" alt="PolicyGPT Enterprise persistent document registry and lifecycle metadata" width="100%" />
+
+*Persistent document registry connecting PostgreSQL lifecycle metadata, original PDF storage, and ChromaDB evidence indexing.*
 
 ## Evaluation framework
 
@@ -171,18 +180,9 @@ desired backend URL explicitly. The Next.js Evaluation product presents the
 latest validated artifact across overview, cases, confidence, provider
 reliability, and downloadable JSON/CSV views.
 
-## Documents product
+<img src="screenshots/v0.3.0/06-policygpt-evaluation-overview.png" alt="PolicyGPT Enterprise controlled RAG evaluation overview" width="100%" />
 
-PostgreSQL is the source of truth for document identity, safe metadata, and lifecycle state. Source files and Chroma vectors remain separate persisted assets. The product supports:
-
-- PDF upload with bounded validation
-- atomic source storage
-- SHA-256 duplicate prevention
-- processing, ready, failed, and outage states
-- document registry search, status filters, and pagination
-- lifecycle and safe detail views
-
-Deletion, reindexing, document-scoped Ask, and multi-document comparison are intentionally outside the current scope.
+*Controlled RAG benchmark showing retrieval quality, unsupported-answer safety, provider availability, and production-style quality gates.*
 
 ## Deployment architecture
 
@@ -210,6 +210,10 @@ Implemented production-engineering features include:
 - comprehensive release verification with a documented Docker-build skip mode
 
 See [deployment readiness](docs/deployment-readiness.md) and the [operations runbook](docs/operations-runbook.md).
+
+<img src="screenshots/v0.3.0/10-policygpt-system-readiness.png" alt="PolicyGPT Enterprise dependency-aware local system readiness" width="100%" />
+
+*Dependency-aware system status separating process liveness, PostgreSQL and ChromaDB readiness, provider configuration, and honest production boundaries.*
 
 ## Technology stack
 
