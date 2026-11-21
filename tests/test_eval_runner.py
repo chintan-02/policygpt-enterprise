@@ -360,7 +360,9 @@ def test_json_csv_structure_and_dataset_hash(tmp_path: Path) -> None:
     assert saved_payload["run"]["dataset_sha256"] == expected_hash
     assert payload["run"]["question_count"] == 1
     assert len(rows) == 1
-    assert set(rows[0]) == set(payload["results"][0])
+    result = saved_payload["results"][0]
+    assert set(rows[0]) == set(result) - {"citation_evidence"}
+    assert result["citation_evidence"][0]["page_number"] == 5
     assert json.loads(rows[0]["retrieved_pages"]) == [5]
 
 
