@@ -218,7 +218,7 @@ def normalize_token(token: str) -> str:
 
 
 def tokenize_significant_terms(value: str) -> list[str]:
-    normalized = normalize_text(value)
+    normalized = re.sub(r"\bthe current one\b", "the current", normalize_text(value))
     terms: set[str] = set()
 
     for raw_token in normalized.split():
