@@ -550,6 +550,19 @@ export function prepareEvaluationIssueGroups(
     "error",
   );
 
+  const reportedCaseIds = new Set(
+    groups.filter((group) => group.status === "error" || group.key === "provider")
+      .flatMap((group) => group.caseIds),
+  );
+  addGroup(
+    "benchmark",
+    "Benchmark case failures",
+    "of the evaluated cases did not meet the benchmark outcome.",
+    "/evaluations/cases?status=review",
+    data.results.filter((item) => !item.case_passed && !reportedCaseIds.has(item.id)),
+    "error",
+  );
+
   return groups;
 }
 

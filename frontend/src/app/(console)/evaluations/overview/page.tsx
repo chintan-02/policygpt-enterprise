@@ -50,7 +50,7 @@ function OverviewContent({ data }: { data: Extract<Awaited<ReturnType<typeof loa
           </div>
           <StatusPill
             status={hardFailures ? "error" : issueGroups.length ? "warning" : "success"}
-            label={hardFailures ? "Quality gate failed" : providerReview ? "Review provider" : issueGroups.length ? "Review required" : "All cases passed"}
+            label={hardFailures ? "Case failures require review" : providerReview ? "Review provider" : issueGroups.length ? "Review required" : "All cases passed"}
           />
         </div>
       </QualityCard>

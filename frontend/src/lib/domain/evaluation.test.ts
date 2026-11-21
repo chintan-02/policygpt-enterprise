@@ -380,6 +380,29 @@ describe("evaluation selectors", () => {
     expect(provider?.caseIds).toHaveLength(11);
   });
 
+  it("reports a failed completeness case even when operational checks pass", () => {
+    const data = adaptEvaluationArtifact(artifact([
+      casePayload(),
+      casePayload({
+        id: "heldout_008",
+        case_passed: false,
+        missing_keywords: ["locked"],
+      }),
+    ]));
+
+    expect(prepareEvaluationIssueGroups(data)).toEqual([
+      expect.objectContaining({
+        key: "benchmark",
+        count: 1,
+        caseIds: ["heldout_008"],
+        status: "error",
+        href: "/evaluations/cases?status=review",
+      }),
+    ]);
+    expect(filterEvaluationCases(data.results, { status: "review" }).map((item) => item.id))
+      .toEqual(["heldout_008"]);
+  });
+
   it("uses supported confidence and precise flag denominators", () => {
     const result = adaptEvaluationArtifact(
       artifact([
