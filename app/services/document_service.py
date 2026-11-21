@@ -15,6 +15,7 @@ from app.core.exceptions import (
     ServiceException,
 )
 from app.db.models.document import Document, DocumentProcessingStage
+from app.rag.prompts import INSUFFICIENT_EVIDENCE_ANSWER
 from app.schemas.document import (
     DocumentAnswerRequest,
     DocumentAnswerResponse,
@@ -304,6 +305,7 @@ class DocumentService:
             evidence_response = self.retrieve_evidence(
                 DocumentEvidenceRequest(
                     query=answer_request.question,
+                    document_id=answer_request.document_id,
                     top_k=answer_request.top_k,
                 )
             )
@@ -343,15 +345,35 @@ class DocumentService:
                     )
                 )
 
+                model_declined = (
+                    not fallback_used
+                    and answer.strip().rstrip(".").casefold()
+                    == INSUFFICIENT_EVIDENCE_ANSWER.rstrip(".").casefold()
+                )
+                if model_declined:
+                    fallback_used = True
+
                 response = DocumentAnswerResponse(
                     question=answer_request.question,
                     answer=answer,
-                    answer_ready=True,
-                    evidence_status=evidence_response.evidence_status,
+                    answer_ready=not model_declined,
+                    evidence_status=(
+                        "insufficient" if model_declined else evidence_response.evidence_status
+                    ),
                     confidence_score=evidence_response.confidence_score,
-                    confidence_breakdown=evidence_response.confidence_breakdown,
-                    citation_count=evidence_response.citation_count,
-                    citations=evidence_response.citations,
+                    confidence_breakdown=(
+                        evidence_response.confidence_breakdown.model_copy(
+                            update={
+                                "decision_reasons": [
+                                    "The answer model found insufficient support in the retrieved passages."
+                                ]
+                            }
+                        )
+                        if model_declined and evidence_response.confidence_breakdown
+                        else evidence_response.confidence_breakdown
+                    ),
+                    citation_count=0 if model_declined else evidence_response.citation_count,
+                    citations=[] if model_declined else evidence_response.citations,
                     llm_provider=llm_provider,
                     model_name=model_name,
                     fallback_used=fallback_used,

@@ -74,6 +74,15 @@ export function questionAction(
   return { question: submittedQuestion, editing: true, resetResult: false };
 }
 
+export function citedEvidenceNumbers(answer: string): Set<number> {
+  const markers = /\[Evidence\s+(\d+)\s*\]|【(?:Evidence\s+(\d+)\s*|(\d+)†L\d+(?:-L?\d+)?)】/gi;
+  return new Set(
+    Array.from(answer.matchAll(markers), (match) =>
+      Number(match[1] ?? match[2] ?? match[3]),
+    ),
+  );
+}
+
 export function nextExpandedCitation(
   currentCitationId: string | null,
   selectedCitationId: string,

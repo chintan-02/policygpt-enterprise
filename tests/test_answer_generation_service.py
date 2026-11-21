@@ -362,3 +362,30 @@ def test_invalid_retry_configuration_is_rejected(
 ) -> None:
     with pytest.raises(ValidationError):
         _settings(**overrides)
+
+
+@pytest.mark.parametrize(
+    ("evidence_text", "expected_modal"),
+    [
+        ("Documentation should be factual, respectful, and stored only in approved systems.", "should"),
+        ("Documentation must be factual, respectful, and stored only in approved systems.", "must"),
+        ("Records should be factual, respectful, and stored only in approved systems.", "must"),
+    ],
+)
+def test_generated_requirement_preserves_cited_modality(
+    evidence_text: str, expected_modal: str
+) -> None:
+    predicate = "be factual, respectful, and stored only in approved systems"
+    prefix = "Managers should document the concern; the documentation"
+    citation = _citation().model_copy(update={"evidence_text": evidence_text})
+    client = _client_with_side_effect(
+        [_completion(f"{prefix} must {predicate} [Evidence 1][Evidence 2].")]
+    )
+
+    with patch("app.services.answer_generation_service.OpenAI", return_value=client):
+        answer, *_ = _service().generate_answer(
+            "What should managers document?", [citation, _citation()]
+        )
+
+    assert answer == f"{prefix} {expected_modal} {predicate} [Evidence 1][Evidence 2]."
+    assert client.chat.completions.create.call_count == 1

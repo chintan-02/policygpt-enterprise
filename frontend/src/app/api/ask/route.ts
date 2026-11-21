@@ -43,6 +43,7 @@ export async function POST(request: Request) {
 
   const upstreamBody = {
     question: parsed.data.question,
+    document_id: parsed.data.document_id,
     top_k: 5,
   } satisfies GeneratedAskRequest;
 

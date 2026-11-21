@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 import structlog
 from sqlalchemy.orm import Session
 
@@ -37,6 +37,9 @@ async def upload_document(
     file: UploadFile = File(...),
     session: Session = Depends(get_db_session),
 ) -> DocumentIngestionResponse:
+    if not document_service.settings.enable_document_uploads:
+        raise HTTPException(status_code=403, detail="Document uploads are disabled.")
+
     result = await document_service.process_pdf_upload(file, session)
 
     logger.info(

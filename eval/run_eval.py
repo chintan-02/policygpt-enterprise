@@ -31,6 +31,7 @@ from eval.scoring import (
     score_expected_keywords,
 )
 from eval.validate_dataset import (
+    DATASET_PATH,
     DatasetValidationError,
     load_dataset,
     validate_records,
@@ -713,6 +714,10 @@ def evaluate_record(
         "fallback_correct": fallback_correct,
         "citation_count": citation_count,
         "retrieved_filenames": citation_metrics["retrieved_filenames"],
+        "citation_evidence": [
+            {key: citation[key] for key in ("filename", "page_number", "excerpt")}
+            for citation in payload["citations"]
+        ],
         "citation_scores": citation_metrics["citation_scores"],
         "top_citation_score": citation_metrics["top_citation_score"],
         "average_citation_score": citation_metrics["average_citation_score"],
@@ -777,6 +782,8 @@ def write_csv_results(path: Path, results: list[dict[str, Any]]) -> None:
 
     for result in results:
         row = dict(result)
+        # Citation excerpts are available in JSON for claim review.
+        row.pop("citation_evidence", None)
         for field_name in CSV_LIST_FIELDS:
             row[field_name] = json.dumps(
                 row[field_name],
@@ -794,7 +801,9 @@ def run_evaluation(
 ) -> tuple[dict[str, Any], Path, Path]:
     dataset_path = Path(args.dataset)
     records = load_dataset(dataset_path)
-    validate_records(records)
+    validate_records(
+        records, enforce_baseline=dataset_path.resolve() == DATASET_PATH.resolve()
+    )
     selected_records = _select_records(records, args.question_id, args.limit)
 
     created_session = session is None

@@ -77,7 +77,9 @@ export function AnswerPanel({
             </Button>
           </div>
           <p className="mt-3 whitespace-pre-wrap text-[15px] leading-7 text-neutral-800">
-            {result.answer}
+            {result.answer.split(/(\*\*[^*\n]+\*\*)/g).map((part, index) =>
+              index % 2 === 1 ? <strong key={index}>{part.slice(2, -2)}</strong> : part
+            )}
           </p>
           <div className="sr-only" aria-live="polite">
             {copied ? "Answer copied." : ""}

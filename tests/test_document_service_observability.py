@@ -284,3 +284,64 @@ def test_retrieval_metrics_use_raw_results_before_filtering(tmp_path: Path) -> N
     assert response.citation_count == 1
     assert response.top_retrieval_score == 0.8
     assert response.average_retrieval_score == 0.5
+
+
+def test_model_decline_is_an_unsupported_answer(tmp_path: Path) -> None:
+    from app.rag.prompts import INSUFFICIENT_EVIDENCE_ANSWER
+
+    service = _document_service(tmp_path / "rag_queries.jsonl")
+    service.retrieval_service.retrieve_evidence.return_value = _evidence(
+        citations=[_citation(page_number=8, filename="policy.pdf", chunk_index=1, score=0.8)]
+    )
+    service.answer_generation_service.generate_answer.return_value = (
+        INSUFFICIENT_EVIDENCE_ANSWER,
+        "test-model",
+        "groq",
+        False,
+    )
+
+    response = service.answer_question(
+        DocumentAnswerRequest(question="What is the approved password manager product name?")
+    )
+
+    assert response.answer_ready is False
+    assert response.fallback_used is True
+    assert response.evidence_status == "insufficient"
+    assert response.citation_count == 0
+    assert response.citations == []
+
+
+def test_handbook_version_passage_can_outrank_semantic_leader(tmp_path: Path) -> None:
+    service = RetrievalService.__new__(RetrievalService)
+    service.settings = _settings(tmp_path / "unused.jsonl")
+    service.confidence_config = ConfidenceConfig()
+    service.embedding_service = Mock()
+    service.vector_store_service = Mock()
+    passages = [
+        (10, 0.4083, "Managers should document significant performance concerns."),
+        (12, 0.37, "The current version in the approved document repository controls over printed or downloaded copies."),
+        (4, 0.31, "Employees should notify their manager as early as possible."),
+    ]
+    service.vector_store_service.search_similar_chunks.return_value = [
+        DocumentSearchResult(
+            document_id="handbook",
+            filename="sample_hr_policy.pdf",
+            page_number=page,
+            chunk_index=0,
+            text=excerpt,
+            char_count=len(excerpt),
+            score=score,
+        )
+        for page, score, excerpt in passages
+    ]
+
+    response = service.retrieve_evidence(
+        DocumentEvidenceRequest(
+            query="Which version controls when a printed handbook disagrees with the current one?"
+        )
+    )
+
+    assert response.answer_ready is True
+    assert response.confidence_breakdown.direct_support is True
+    assert response.citations[0].page_number == 12
+    assert response.top_retrieval_score == 0.4083

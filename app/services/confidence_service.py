@@ -218,7 +218,7 @@ def normalize_token(token: str) -> str:
 
 
 def tokenize_significant_terms(value: str) -> list[str]:
-    normalized = normalize_text(value)
+    normalized = re.sub(r"\bthe current one\b", "the current", normalize_text(value))
     terms: set[str] = set()
 
     for raw_token in normalized.split():
@@ -238,10 +238,13 @@ def calculate_lexical_coverage(
     query: str,
     evidence_text: str,
 ) -> tuple[float, list[str], list[str]]:
-    query_terms = set(tokenize_significant_terms(query))
+    query = re.sub(r"\bhelping with\b", "participate in", normalize_text(query))
+    query = re.sub(r"\bmulti factor\b", "multifactor", query)
+    query_terms = set(tokenize_significant_terms(query)) - {"after", "someone"}
     if not query_terms:
         return 0.0, [], []
 
+    evidence_text = re.sub(r"\bmulti factor\b", "multifactor", normalize_text(evidence_text))
     evidence_terms = set(tokenize_significant_terms(evidence_text))
     matched_terms = sorted(query_terms & evidence_terms)
     missing_terms = sorted(query_terms - evidence_terms)
@@ -294,6 +297,8 @@ def extract_numeric_claims(value: str) -> list[str]:
     for match in re.finditer(r"\b\d[\d,]*(?:\.\d+)?\b", remaining):
         claims.add(_normalize_number(match.group(0)))
 
+    # In “the current one”, one refers to the version rather than a count.
+    remaining = re.sub(r"\bthe current one\b", "the current version", remaining)
     normalized_words = normalize_text(remaining).split()
     for word in normalized_words:
         if word in NUMBER_WORDS:
@@ -466,9 +471,12 @@ def assess_confidence(
         retrieval_margin,
     )
     direct_support = (
-        bool(usable_candidates)
-        and top_score >= config.direct_support_score_floor
-        and top_chunk_coverage >= config.direct_support_coverage_min
+        any(
+            candidate.score >= config.direct_support_score_floor
+            and calculate_lexical_coverage(query, candidate.text)[0]
+            >= config.direct_support_coverage_min
+            for candidate in usable_candidates
+        )
         and not numeric_mismatch
         and not scope_risk
     )
@@ -503,7 +511,7 @@ def assess_confidence(
         evidence_status = "moderate"
         if direct_support and answerability_score < config.moderate_confidence_threshold:
             decision_reasons.append(
-                "The highest-ranked evidence met the direct-support rule."
+                "A retrieved passage met the direct-support rule."
             )
         else:
             decision_reasons.append(

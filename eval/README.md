@@ -301,3 +301,23 @@ For comparable local runs, use a clean vector collection with
 `examples/sample_hr_policy.pdf` indexed exactly once. Duplicate vectors can
 distort retrieval and confidence component metrics; the evaluator reports
 duplicate citation cards but never modifies ChromaDB data.
+
+## Review generated answers
+
+Use the synthetic sample handbook in a dedicated index and keep the original
+benchmark as the regression baseline. Run the separate 24-case holdout after
+retrieval and gating settings are fixed.
+
+```bash
+python eval/run_eval.py --dataset eval/heldout_questions.jsonl
+```
+
+Enable a provider on the backend for this run. Check the reported provider
+and fallback state per case. For each generated answer, compare each material
+claim with the cited excerpt and its source page. Mark claims as supported,
+contradicted, or unsupported. Count incorrect numbers and omitted qualifying
+conditions as failures. Report declined supported cases and answers to
+unsupported questions separately. A page hit or keyword match alone cannot
+establish claim support.
+
+Keep evaluation artifacts private when they contain non-public documents.

@@ -24,7 +24,7 @@ type AskWorkspaceContextValue = AskWorkspaceSnapshot & {
   isPending: boolean;
   setQuestion: (question: string) => void;
   setEditingQuestion: (editing: boolean) => void;
-  submit: (question: string) => Promise<AskResult | null>;
+  submit: (question: string, documentId?: string) => Promise<AskResult | null>;
   cancel: () => void;
   reset: () => void;
 };
@@ -66,11 +66,11 @@ export function AskWorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "set_editing", editing });
   }, []);
 
-  const submit = useCallback(async (question: string) => {
+  const submit = useCallback(async (question: string, documentId?: string) => {
     if (controllerRef.current) return null;
 
     dispatch({ type: "validation_started" });
-    const parsed = askRequestSchema.safeParse({ question });
+    const parsed = askRequestSchema.safeParse({ question, document_id: documentId });
 
     if (!parsed.success) {
       dispatch({

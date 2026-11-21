@@ -11,6 +11,7 @@ from app.services.confidence_service import (
     ConfidenceConfig,
     EvidenceCandidate,
     assess_confidence,
+    calculate_lexical_coverage,
 )
 from app.services.embedding_service import EmbeddingService
 from app.services.vector_store_service import VectorStoreService
@@ -61,6 +62,7 @@ class RetrievalService:
         raw_results = self.vector_store_service.search_similar_chunks(
             query_embedding=query_embedding,
             top_k=evidence_request.top_k,
+            document_id=str(evidence_request.document_id) if evidence_request.document_id else None,
         )
 
         raw_scores = [result.score for result in raw_results]
@@ -78,6 +80,17 @@ class RetrievalService:
             ],
             config=self.confidence_config,
         )
+        if (
+            assessment.direct_support
+            and assessment.answerability_score < self.confidence_config.moderate_confidence_threshold
+        ):
+            candidate_results.sort(
+                key=lambda candidate: (
+                    candidate.score >= self.confidence_config.direct_support_score_floor,
+                    calculate_lexical_coverage(evidence_request.query, candidate.text)[0],
+                ),
+                reverse=True,
+            )
         citation_cards = (
             self._build_citation_cards(candidate_results)
             if assessment.answer_ready

@@ -11,7 +11,7 @@ export function UnsupportedResult({
 }) {
   const reason =
     result.confidence.reasons[0] ??
-    "The retrieved evidence did not meet the configured support threshold.";
+    "The retrieved passages did not establish an answer.";
 
   return (
     <section

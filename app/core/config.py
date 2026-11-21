@@ -147,6 +147,7 @@ class Settings(BaseSettings):
     )
     max_citation_cards: int = Field(default=5, gt=0, alias="MAX_CITATION_CARDS")
 
+    enable_document_uploads: bool = Field(default=True, alias="ENABLE_DOCUMENT_UPLOADS")
     enable_llm_answer: bool = Field(default=True, alias="ENABLE_LLM_ANSWER")
     llm_provider: Literal["groq", "openai", "none"] = Field(
         default="groq",
@@ -177,7 +178,7 @@ class Settings(BaseSettings):
         alias="GROQ_BASE_URL",
     )
     groq_model_name: str = Field(
-        default="llama-3.3-70b-versatile",
+        default="openai/gpt-oss-120b",
         alias="GROQ_MODEL_NAME",
     )
 

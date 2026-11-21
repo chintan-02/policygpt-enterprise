@@ -7,6 +7,7 @@ import { ProvenanceRail } from "@/components/policygpt/provenance-rail";
 import { Button } from "@/components/ui/button";
 import type { AskResult } from "@/lib/domain/ask";
 import {
+  citedEvidenceNumbers,
   expandedCitationForRequest,
   selectCitationForRequest,
   type CitationExpansionState,
@@ -20,12 +21,6 @@ function RawMetric({ label, value }: { label: string; value: number }) {
       <dd className="font-metric text-neutral-700">{value.toFixed(4)}</dd>
     </div>
   );
-}
-
-function sourceRole(index: number): string {
-  if (index === 0) return "Primary evidence";
-  if (index === 1) return "Supporting evidence";
-  return "Additional context";
 }
 
 export function EvidencePanel({
@@ -65,6 +60,13 @@ export function EvidencePanel({
     );
   }
 
+  const citedSources = citedEvidenceNumbers(result.answer ?? "");
+  const sources = result.citations.map((citation, index) => ({
+    citation,
+    number: index + 1,
+    cited: citedSources.has(index + 1),
+  })).sort((left, right) => Number(right.cited) - Number(left.cited));
+
   return (
     <aside
       className="min-w-0 xl:sticky xl:top-[86px] xl:flex xl:max-h-[calc(100dvh-110px)] xl:flex-col"
@@ -75,7 +77,7 @@ export function EvidencePanel({
           Source evidence
         </h2>
         <p className="mt-1 text-sm leading-5 text-neutral-600">
-          Review the {result.citations.length} cited policy {result.citations.length === 1 ? "passage" : "passages"}.
+          Review the {result.citations.length} retrieved policy {result.citations.length === 1 ? "passage" : "passages"}.
         </p>
       </div>
 
@@ -83,14 +85,14 @@ export function EvidencePanel({
         ref={evidenceContainerRef}
         className="evidence-scrollbar space-y-3 xl:min-h-0 xl:overflow-y-auto xl:pr-2"
       >
-        {result.citations.map((citation, index) => {
+        {sources.map(({ citation, number, cited }) => {
           const expanded = expandedCitationId === citation.id;
-          const excerptId = `citation-excerpt-${index + 1}`;
+          const excerptId = `citation-excerpt-${number}`;
 
           return (
             <article key={citation.id} className="rounded-xl border border-neutral-200 bg-white p-4">
               <div className="mb-2.5 text-xs font-semibold text-neutral-600">
-                Source {index + 1} <span aria-hidden="true">—</span> {sourceRole(index)}
+                Evidence {number} <span aria-hidden="true">—</span> {cited ? "Cited in answer" : "Retrieved passage"}
               </div>
               <ProvenanceRail
                 document={citation.document}
@@ -137,10 +139,10 @@ export function EvidencePanel({
 
         <EngineeringPanel title="Evidence engineering details">
           <dl className="space-y-2 text-xs">
-            {result.citations.map((citation, index) => (
+            {sources.map(({ citation, number }) => (
               <RawMetric
                 key={citation.id}
-                label={`Source ${index + 1} retrieval`}
+                label={`Evidence ${number} retrieval`}
                 value={citation.retrievalScore}
               />
             ))}
