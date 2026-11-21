@@ -37,7 +37,7 @@ PolicyGPT makes those concerns part of the product contract.
 | Confidence | Calibrated answerability rather than treating similarity as probability |
 | Unsupported questions | Generation is rejected when evidence cannot support the request |
 | Provider failure | Citation-only evidence remains available without a provider key |
-| Quality | A versioned 16-question evaluation dataset and repeatable scoring workflow |
+| Quality | Versioned evaluation datasets and repeatable scoring |
 | Operations | Request IDs, structured logs, liveness/readiness separation, migrations, and health-gated Compose startup |
 
 ## What I engineered
@@ -159,6 +159,20 @@ The Ask page can scope retrieval to an indexed document before candidate ranking
 *Persistent document registry connecting PostgreSQL lifecycle metadata, original PDF storage, and ChromaDB evidence indexing.*
 
 ## Evaluation framework
+
+The final 24-case local holdout used a fictional HR handbook and enabled answer generation. The results below come from the saved evaluation artifact.
+
+| Measure | Result |
+| --- | --- |
+| Cases passed | **23/24** |
+| Correct refusals | **4/4** |
+| Request errors | **0** |
+| Expected-page retrieval and answer-readiness accuracy | **100% each** |
+| Generated answers for answer-ready cases | **20/20** |
+
+The one scored miss was a keyword check that expected “locked” when the generated answer used “lock” (case `heldout_008`). The saved result retains that failure. The handbook demo cites page 12 for which version controls, and the password-manager example returns an insufficient-evidence refusal.
+
+### Reproducing the v0.3.0 baseline
 
 The checked-in dataset contains 16 questions: 11 supported and 5 unsupported. It validates readiness decisions, fallback behavior, expected pages, keyword coverage, citations, confidence diagnostics, and provider behavior. Dataset metrics describe this benchmark only; they are not production accuracy or latency claims.
 

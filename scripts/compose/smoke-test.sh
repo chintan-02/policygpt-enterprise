@@ -13,19 +13,20 @@ fi
 
 compose=(docker compose --env-file "${ENV_FILE}")
 
-read_env_value() {
-  local key="$1"
-  local fallback="$2"
-  local value
-  value="$(awk -v key="${key}" '
-    index($0, key "=") == 1 {
-      sub(/^[^=]*=/, "")
-      gsub(/\r$/, "")
-      print
-      exit
-    }
-  ' "${ENV_FILE}")"
-  printf '%s' "${value:-${fallback}}"
+published_port() {
+  local service="$1"
+  local container_port="$2"
+  local binding
+  local port
+  if binding="$("${compose[@]}" port "${service}" "${container_port}")"; then
+    port="${binding##*:}"
+    if [[ "${port}" =~ ^[0-9]+$ ]]; then
+      printf '%s' "${port}"
+      return 0
+    fi
+  fi
+  echo "FAIL: No published port found for ${service}:${container_port}." >&2
+  return 1
 }
 
 require_running_service() {
@@ -98,11 +99,6 @@ require_json_response() {
   echo "PASS: ${label} returned JSON"
 }
 
-backend_port="$(read_env_value BACKEND_HOST_PORT 8000)"
-frontend_port="$(read_env_value FRONTEND_HOST_PORT 3000)"
-backend_base="http://127.0.0.1:${backend_port}"
-frontend_base="http://127.0.0.1:${frontend_port}"
-
 require_running_service postgres
 require_running_service backend
 require_running_service frontend
@@ -110,6 +106,11 @@ require_migration_success
 require_healthy_service postgres
 require_healthy_service backend
 require_healthy_service frontend
+
+backend_port="$(published_port backend 8000)"
+frontend_port="$(published_port frontend 3000)"
+backend_base="http://127.0.0.1:${backend_port}"
+frontend_base="http://127.0.0.1:${frontend_port}"
 
 wait_for_http "backend health" "${backend_base}/api/v1/health"
 wait_for_http "backend readiness" "${backend_base}/api/v1/ready"
