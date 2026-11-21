@@ -148,7 +148,7 @@ PostgreSQL is the source of truth for document identity, safe metadata, and life
 - document registry search, status filters, and pagination
 - lifecycle and safe detail views
 
-Deletion, reindexing, document-scoped Ask, and multi-document comparison are intentionally outside the current scope.
+The Ask page can scope retrieval to an indexed document before candidate ranking. The all-documents option remains available. Deletion, reindexing, and multi-document comparison are outside the current scope.
 
 <img src="screenshots/v0.3.0/12-policygpt-upload-workflow.png" alt="PolicyGPT Enterprise controlled PDF upload and synchronous evidence-indexing workflow" width="100%" />
 

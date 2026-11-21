@@ -68,11 +68,15 @@ def load_dataset(path: Path = DATASET_PATH) -> list[dict[str, Any]]:
     return records
 
 
-def validate_records(records: list[dict[str, Any]]) -> dict[str, Any]:
+def validate_records(
+    records: list[dict[str, Any]], *, enforce_baseline: bool = True
+) -> dict[str, Any]:
     errors: list[str] = []
     seen_ids: set[str] = set()
 
-    if len(records) != 16:
+    if not records:
+        errors.append("Dataset must contain at least one record")
+    if enforce_baseline and len(records) != 16:
         errors.append(f"Expected exactly 16 records, found {len(records)}")
 
     for index, record in enumerate(records, start=1):
@@ -176,11 +180,11 @@ def validate_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     )
     difficulty_counts = Counter(record.get("difficulty") for record in records)
 
-    if supported_count != 11:
+    if enforce_baseline and supported_count != 11:
         errors.append(f"Expected 11 supported questions, found {supported_count}")
-    if unsupported_count != 5:
+    if enforce_baseline and unsupported_count != 5:
         errors.append(f"Expected 5 unsupported questions, found {unsupported_count}")
-    if dict(difficulty_counts) != EXPECTED_DIFFICULTY_COUNTS:
+    if enforce_baseline and dict(difficulty_counts) != EXPECTED_DIFFICULTY_COUNTS:
         errors.append(
             "Expected difficulty distribution "
             f"{EXPECTED_DIFFICULTY_COUNTS}, found {dict(difficulty_counts)}"
@@ -200,7 +204,9 @@ def validate_records(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def validate_dataset(path: Path = DATASET_PATH) -> dict[str, Any]:
-    return validate_records(load_dataset(path))
+    return validate_records(
+        load_dataset(path), enforce_baseline=path.resolve() == DATASET_PATH.resolve()
+    )
 
 
 def main() -> int:

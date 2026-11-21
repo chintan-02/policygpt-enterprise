@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { MAX_QUESTION_LENGTH } from "@/lib/validation/ask";
 
 export function QuestionComposer({
+  documents,
+  documentId,
+  onDocumentChange,
   question,
   onQuestionChange,
   onSubmit,
@@ -13,6 +16,9 @@ export function QuestionComposer({
   validationMessage,
   autoFocus = false,
 }: {
+  documents: { id: string; filename: string }[];
+  documentId: string;
+  onDocumentChange: (id: string) => void;
   question: string;
   onQuestionChange: (value: string) => void;
   onSubmit: () => void;
@@ -40,12 +46,19 @@ export function QuestionComposer({
         Policy question
       </label>
       <div id="question-scope" className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold tracking-[0.08em] text-neutral-600 uppercase">
+        <label htmlFor="policy-document" className="text-xs font-semibold text-neutral-600">
           Search scope
-        </span>
-        <span className="rounded-full border border-teal-100 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
-          All indexed documents
-        </span>
+        </label>
+        <select
+          id="policy-document"
+          value={documentId}
+          onChange={(event) => onDocumentChange(event.target.value)}
+          disabled={disabled || pending}
+          className="max-w-full rounded-lg border border-neutral-300 bg-white px-2 py-1 text-sm text-neutral-900"
+        >
+          <option value="">All indexed documents</option>
+          {documents.map(({ id, filename }) => <option key={id} value={id}>{filename}</option>)}
+        </select>
       </div>
       <textarea
         id="policy-question"

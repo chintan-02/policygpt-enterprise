@@ -73,11 +73,13 @@ class VectorStoreService:
         self,
         query_embedding: list[float],
         top_k: int,
+        document_id: str | None = None,
     ) -> list[DocumentSearchResult]:
         try:
             results = self.collection.query(
                 query_embeddings=[query_embedding],
                 n_results=top_k,
+                where={"document_id": document_id} if document_id else None,
                 include=["documents", "metadatas", "distances"],
             )
         except Exception as exc:

@@ -61,6 +61,7 @@ class RetrievalService:
         raw_results = self.vector_store_service.search_similar_chunks(
             query_embedding=query_embedding,
             top_k=evidence_request.top_k,
+            document_id=str(evidence_request.document_id) if evidence_request.document_id else None,
         )
 
         raw_scores = [result.score for result in raw_results]

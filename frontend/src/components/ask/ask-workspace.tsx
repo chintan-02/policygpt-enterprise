@@ -1,7 +1,7 @@
 "use client";
 
 import { RotateCcw } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAsk } from "@/hooks/use-ask";
@@ -40,7 +40,11 @@ function LoadingPanel() {
   );
 }
 
-export function AskWorkspace({ health }: { health: FrontendHealthResponse }) {
+export function AskWorkspace({ health, documents }: {
+  health: FrontendHealthResponse;
+  documents: { id: string; filename: string }[];
+}) {
+  const [documentId, setDocumentId] = useState("");
   const {
     state,
     result,
@@ -88,7 +92,7 @@ export function AskWorkspace({ health }: { health: FrontendHealthResponse }) {
 
   async function submitQuestion() {
     setEditingQuestion(true);
-    await submit(question);
+    await submit(question, documentId || undefined);
   }
 
   return (
@@ -113,6 +117,9 @@ export function AskWorkspace({ health }: { health: FrontendHealthResponse }) {
         />
       ) : (
         <QuestionComposer
+          documents={documents}
+          documentId={documentId}
+          onDocumentChange={setDocumentId}
           question={question}
           onQuestionChange={setQuestion}
           onSubmit={submitQuestion}

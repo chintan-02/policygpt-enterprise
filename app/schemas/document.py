@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -156,6 +157,7 @@ class CitationCard(BaseModel):
 
 
 class DocumentEvidenceRequest(BaseModel):
+    document_id: UUID | None = None
     query: str = Field(..., min_length=1)
     top_k: int = Field(default=5, ge=1, le=20)
 
@@ -200,6 +202,7 @@ class DocumentEvidenceResponse(BaseModel):
 
 
 class DocumentAnswerRequest(BaseModel):
+    document_id: UUID | None = None
     question: str = Field(..., min_length=1)
     top_k: int = Field(default=5, ge=1, le=20)
 

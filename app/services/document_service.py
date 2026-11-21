@@ -304,6 +304,7 @@ class DocumentService:
             evidence_response = self.retrieve_evidence(
                 DocumentEvidenceRequest(
                     query=answer_request.question,
+                    document_id=answer_request.document_id,
                     top_k=answer_request.top_k,
                 )
             )

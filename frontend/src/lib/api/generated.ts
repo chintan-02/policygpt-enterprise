@@ -293,6 +293,8 @@ export interface components {
         };
         /** DocumentAnswerRequest */
         DocumentAnswerRequest: {
+            /** Format: uuid */
+            document_id?: string | null;
             /** Question */
             question: string;
             /**
@@ -391,6 +393,8 @@ export interface components {
         };
         /** DocumentEvidenceRequest */
         DocumentEvidenceRequest: {
+            /** Format: uuid */
+            document_id?: string | null;
             /** Query */
             query: string;
             /**

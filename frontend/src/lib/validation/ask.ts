@@ -3,6 +3,7 @@ import { z } from "zod";
 export const MAX_QUESTION_LENGTH = 2000;
 
 export const askRequestSchema = z.object({
+  document_id: z.uuid().optional(),
   question: z
     .string()
     .trim()
