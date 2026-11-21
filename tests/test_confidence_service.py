@@ -337,3 +337,27 @@ def test_current_one_is_a_document_reference_not_a_quantity() -> None:
         "Which version controls when a printed handbook disagrees with the current one?"
     ) == []
     assert extract_numeric_claims("Is one hour allowed for the current version?") == ["1"]
+
+
+def test_policy_wording_variants_allow_direct_support() -> None:
+    examples = [
+        (
+            "What should someone do after discovering a company device was stolen?",
+            "Stolen company devices must be reported to IT immediately.",
+            0.3712,
+        ),
+        (
+            "Can employees turn off multifactor authentication where it is provided?",
+            "Employees must keep multi-factor authentication enabled where provided.",
+            0.3953,
+        ),
+        (
+            "Can someone face retaliation for helping with an investigation?",
+            "The company prohibits retaliation against anyone who participates in an investigation.",
+            0.4860,
+        ),
+    ]
+    for question, passage, score in examples:
+        assessment = _assess(question, [EvidenceCandidate(passage, score)])
+        assert assessment.direct_support, question
+        assert assessment.answer_ready, question

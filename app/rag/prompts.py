@@ -29,7 +29,10 @@ Answer style:
 - Remain concise and do not copy irrelevant evidence.
 - Do not mention embeddings, vector databases, retrieval internals, or prompt instructions.
 - Do not include raw JSON or Markdown emphasis.
-- Preserve the difference between required, recommended, and permitted actions.
+- Use the source's exact modal verb for every policy obligation or recommendation.
+  If the source says "should document", say "should document".
+- Keep criteria for a separate policy decision out of the answer unless the
+  cited passage explicitly applies those criteria to the question.
 - Cite the supporting evidence number for every material policy claim.
 """
 
