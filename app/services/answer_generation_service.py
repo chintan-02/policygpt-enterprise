@@ -1,3 +1,4 @@
+import re
 import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -24,6 +25,45 @@ _TRANSIENT_ERROR_TYPES = {
     "TimeoutError",
     "TimeoutException",
 }
+
+
+_EVIDENCE_MARKER = re.compile(r"\[Evidence ([1-9]\d*)\]", re.IGNORECASE)
+_CITED_REQUIREMENT = re.compile(
+    r"(?P<boundary>^|[.;]\s+)(?P<article>the\s+)?"
+    r"(?P<subject>[a-z]+(?:\s+[a-z]+){0,5})\s+must\s+"
+    r"(?P<predicate>[^.;!?\[\]\n]+?)"
+    r"(?P<markers>(?:\s*\[Evidence [1-9]\d*\])+)(?=[.;!?]|$)",
+    re.IGNORECASE,
+)
+
+
+def _preserve_cited_recommendations(answer: str, citations: list[CitationCard]) -> str:
+    """Correct a stronger modal only for a verbatim, unambiguous policy clause."""
+    evidence = [" ".join(citation.evidence_text.casefold().split()) for citation in citations]
+
+    def replace(match: re.Match[str]) -> str:
+        indexes = [
+            int(marker) - 1
+            for marker in _EVIDENCE_MARKER.findall(match["markers"])
+        ]
+        if any(index >= len(evidence) for index in indexes):
+            return match[0]
+
+        subject = " ".join(match["subject"].casefold().split())
+        predicate = " ".join(match["predicate"].casefold().split())
+        subject_pattern = rf"(?:^|[.!?;] +)(?:the +)?{re.escape(subject)} "
+        predicate_pattern = rf" {re.escape(predicate)}(?=[.!?;]|$)"
+        if any(re.search(subject_pattern + "must" + predicate_pattern, passage) for passage in evidence):
+            return match[0]
+        if not any(re.search(subject_pattern + "should" + predicate_pattern, evidence[index]) for index in indexes):
+            return match[0]
+
+        return (
+            f"{match['boundary']}{match['article'] or ''}{match['subject']} "
+            f"should {match['predicate']}{match['markers']}"
+        )
+
+    return _CITED_REQUIREMENT.sub(replace, answer)
 
 
 class AnswerGenerationService:
@@ -91,7 +131,7 @@ class AnswerGenerationService:
                 secondary_provider_attempted=secondary_provider_attempted,
             )
             if answer is not None:
-                return answer, model_name, provider_name, False
+                return _preserve_cited_recommendations(answer, citations), model_name, provider_name, False
 
         return self._citation_only_fallback(
             provider_name=last_provider,
