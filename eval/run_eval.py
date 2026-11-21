@@ -782,6 +782,8 @@ def write_csv_results(path: Path, results: list[dict[str, Any]]) -> None:
 
     for result in results:
         row = dict(result)
+        # Citation excerpts are available in JSON for claim review.
+        row.pop("citation_evidence", None)
         for field_name in CSV_LIST_FIELDS:
             row[field_name] = json.dumps(
                 row[field_name],
