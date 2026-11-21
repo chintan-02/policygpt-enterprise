@@ -468,9 +468,12 @@ def assess_confidence(
         retrieval_margin,
     )
     direct_support = (
-        bool(usable_candidates)
-        and top_score >= config.direct_support_score_floor
-        and top_chunk_coverage >= config.direct_support_coverage_min
+        any(
+            candidate.score >= config.direct_support_score_floor
+            and calculate_lexical_coverage(query, candidate.text)[0]
+            >= config.direct_support_coverage_min
+            for candidate in usable_candidates
+        )
         and not numeric_mismatch
         and not scope_risk
     )
@@ -505,7 +508,7 @@ def assess_confidence(
         evidence_status = "moderate"
         if direct_support and answerability_score < config.moderate_confidence_threshold:
             decision_reasons.append(
-                "The highest-ranked evidence met the direct-support rule."
+                "A retrieved passage met the direct-support rule."
             )
         else:
             decision_reasons.append(

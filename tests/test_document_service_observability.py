@@ -309,3 +309,39 @@ def test_model_decline_is_an_unsupported_answer(tmp_path: Path) -> None:
     assert response.evidence_status == "insufficient"
     assert response.citation_count == 0
     assert response.citations == []
+
+
+def test_handbook_version_passage_can_outrank_semantic_leader(tmp_path: Path) -> None:
+    service = RetrievalService.__new__(RetrievalService)
+    service.settings = _settings(tmp_path / "unused.jsonl")
+    service.confidence_config = ConfidenceConfig()
+    service.embedding_service = Mock()
+    service.vector_store_service = Mock()
+    passages = [
+        (10, 0.4083, "Managers should document significant performance concerns."),
+        (12, 0.37, "The current version in the approved document repository controls over printed or downloaded copies."),
+        (4, 0.31, "Employees should notify their manager as early as possible."),
+    ]
+    service.vector_store_service.search_similar_chunks.return_value = [
+        DocumentSearchResult(
+            document_id="handbook",
+            filename="sample_hr_policy.pdf",
+            page_number=page,
+            chunk_index=0,
+            text=excerpt,
+            char_count=len(excerpt),
+            score=score,
+        )
+        for page, score, excerpt in passages
+    ]
+
+    response = service.retrieve_evidence(
+        DocumentEvidenceRequest(
+            query="Which version controls when a printed handbook disagrees with the current one?"
+        )
+    )
+
+    assert response.answer_ready is True
+    assert response.confidence_breakdown.direct_support is True
+    assert response.citations[0].page_number == 12
+    assert response.top_retrieval_score == 0.4083
