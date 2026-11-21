@@ -7,6 +7,7 @@ import { ProvenanceRail } from "@/components/policygpt/provenance-rail";
 import { Button } from "@/components/ui/button";
 import type { AskResult } from "@/lib/domain/ask";
 import {
+  citedEvidenceNumbers,
   expandedCitationForRequest,
   selectCitationForRequest,
   type CitationExpansionState,
@@ -59,10 +60,7 @@ export function EvidencePanel({
     );
   }
 
-  const citedSources = new Set(
-    [...(result.answer ?? "").matchAll(/(?:\[|【)Evidence\s+(\d+)\s*(?:\]|】)/gi)]
-      .map((match) => Number(match[1])),
-  );
+  const citedSources = citedEvidenceNumbers(result.answer ?? "");
   const sources = result.citations.map((citation, index) => ({
     citation,
     number: index + 1,

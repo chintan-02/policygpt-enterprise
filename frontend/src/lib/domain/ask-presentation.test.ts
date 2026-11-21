@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  citedEvidenceNumbers,
   composerPresentation,
   evidencePanelResetState,
   ENGINEERING_DETAILS_DEFAULT_OPEN,
@@ -97,5 +98,13 @@ describe("Ask compact-result presentation", () => {
     expect(firstRequest.key).not.toBe(repeatedRequest.key);
     expect(repeatedRequest.expandedCitationId).toBeNull();
     expect(repeatedRequest.scrollTop).toBe(0);
+  });
+});
+
+describe("answer evidence markers", () => {
+  it("recognizes explicit and line-style markers without counting bracketed values", () => {
+    const answer = "Policy [Evidence 2], 【Evidence 3】, 【4†L9-L12】, 【1†L3】, 【4†L8】, [300].";
+
+    expect([...citedEvidenceNumbers(answer)]).toEqual([2, 3, 4, 1]);
   });
 });

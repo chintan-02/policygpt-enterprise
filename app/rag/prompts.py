@@ -33,7 +33,8 @@ Answer style:
   If the source says "should document", say "should document".
 - Keep criteria for a separate policy decision out of the answer unless the
   cited passage explicitly applies those criteria to the question.
-- Cite the supporting evidence number for every material policy claim.
+- Cite every material policy claim using the exact marker [Evidence N],
+  where N is the supplied evidence number. The evidence has no line numbers.
 """
 
 
@@ -52,7 +53,17 @@ Include every material qualifier present in the evidence that affects frequency,
 eligibility, amounts or limits, deadlines, prerequisites, approvals, exceptions,
 conditions, or prohibited and unacceptable substitutes. State relevant negative
 limitations explicitly, even when the positive requirement has already been stated.
+For questions asking what to document, record, or report, use the source's
+explicit list of items for that action. Include a condition or qualifier only
+when it governs that same action. Keep the original obligation wording for each
+clause, including any separate sentence about how to handle the record.
+Example: if a passage says "Escalation depends on impact. Staff should record
+the date and outcome. Records should be stored in the case system", an answer
+about what to record is "Staff should record the date and outcome [Evidence 1]."
+If you mention storage, keep "should be stored." Impact governs escalation.
 Before finalizing, check that no such qualifier or question part was omitted.
+Check each claim against the specific sentence supporting it and cite it as
+[Evidence N].
 Remain concise and exclude irrelevant evidence.
 If the evidence is insufficient, use the fallback message exactly.
 """
