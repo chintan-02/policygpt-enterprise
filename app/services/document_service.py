@@ -361,7 +361,17 @@ class DocumentService:
                         "insufficient" if model_declined else evidence_response.evidence_status
                     ),
                     confidence_score=evidence_response.confidence_score,
-                    confidence_breakdown=evidence_response.confidence_breakdown,
+                    confidence_breakdown=(
+                        evidence_response.confidence_breakdown.model_copy(
+                            update={
+                                "decision_reasons": [
+                                    "The answer model found insufficient support in the retrieved passages."
+                                ]
+                            }
+                        )
+                        if model_declined and evidence_response.confidence_breakdown
+                        else evidence_response.confidence_breakdown
+                    ),
                     citation_count=0 if model_declined else evidence_response.citation_count,
                     citations=[] if model_declined else evidence_response.citations,
                     llm_provider=llm_provider,
