@@ -294,6 +294,8 @@ def extract_numeric_claims(value: str) -> list[str]:
     for match in re.finditer(r"\b\d[\d,]*(?:\.\d+)?\b", remaining):
         claims.add(_normalize_number(match.group(0)))
 
+    # In “the current one”, one refers to the version rather than a count.
+    remaining = re.sub(r"\bthe current one\b", "the current version", remaining)
     normalized_words = normalize_text(remaining).split()
     for word in normalized_words:
         if word in NUMBER_WORDS:

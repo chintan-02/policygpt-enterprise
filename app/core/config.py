@@ -178,7 +178,7 @@ class Settings(BaseSettings):
         alias="GROQ_BASE_URL",
     )
     groq_model_name: str = Field(
-        default="llama-3.3-70b-versatile",
+        default="openai/gpt-oss-120b",
         alias="GROQ_MODEL_NAME",
     )
 

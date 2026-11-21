@@ -284,3 +284,28 @@ def test_retrieval_metrics_use_raw_results_before_filtering(tmp_path: Path) -> N
     assert response.citation_count == 1
     assert response.top_retrieval_score == 0.8
     assert response.average_retrieval_score == 0.5
+
+
+def test_model_decline_is_an_unsupported_answer(tmp_path: Path) -> None:
+    from app.rag.prompts import INSUFFICIENT_EVIDENCE_ANSWER
+
+    service = _document_service(tmp_path / "rag_queries.jsonl")
+    service.retrieval_service.retrieve_evidence.return_value = _evidence(
+        citations=[_citation(page_number=8, filename="policy.pdf", chunk_index=1, score=0.8)]
+    )
+    service.answer_generation_service.generate_answer.return_value = (
+        INSUFFICIENT_EVIDENCE_ANSWER,
+        "test-model",
+        "groq",
+        False,
+    )
+
+    response = service.answer_question(
+        DocumentAnswerRequest(question="What is the approved password manager product name?")
+    )
+
+    assert response.answer_ready is False
+    assert response.fallback_used is True
+    assert response.evidence_status == "insufficient"
+    assert response.citation_count == 0
+    assert response.citations == []

@@ -330,3 +330,10 @@ def test_settings_reject_invalid_confidence_configuration(
 ) -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **overrides)
+
+
+def test_current_one_is_a_document_reference_not_a_quantity() -> None:
+    assert extract_numeric_claims(
+        "Which version controls when a printed handbook disagrees with the current one?"
+    ) == []
+    assert extract_numeric_claims("Is one hour allowed for the current version?") == ["1"]
