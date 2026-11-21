@@ -63,7 +63,7 @@ export function EvidencePanel({
     [...(result.answer ?? "").matchAll(/(?:\[|【)Evidence\s+(\d+)\s*(?:\]|】)/gi)]
       .map((match) => Number(match[1])),
   );
-  const sources = sources.map(({ citation, number }) => ({
+  const sources = result.citations.map((citation, index) => ({
     citation,
     number: index + 1,
     cited: citedSources.has(index + 1),
